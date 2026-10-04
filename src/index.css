@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', SimSun, serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  }
+}
+
+.font-serif-sc {
+  font-family: var(--font-serif);
+}
+
+.font-sans-sc {
+  font-family: var(--font-sans);
+}
+
+/* 米字格与田字格专用画布背景 */
+.mizige-bg {
+  position: relative;
+  background-color: #FCF9F2;
+  background-image: 
+    linear-gradient(to right, rgba(184, 58, 45, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(184, 58, 45, 0.22) 1px, transparent 1px),
+    linear-gradient(45deg, transparent 49.6%, rgba(184, 58, 45, 0.12) 49.6%, rgba(184, 58, 45, 0.12) 50.4%, transparent 50.4%),
+    linear-gradient(-45deg, transparent 49.6%, rgba(184, 58, 45, 0.12) 49.6%, rgba(184, 58, 45, 0.12) 50.4%, transparent 50.4%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-position: center;
+}
+
+.tianzige-bg {
+  position: relative;
+  background-color: #FCF9F2;
+  background-image: 
+    linear-gradient(to right, rgba(184, 58, 45, 0.22) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(184, 58, 45, 0.22) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%;
+  background-position: center;
+}
+
+/* 宣纸淡纹理效果 */
+.paper-texture {
+  background-color: #FAF8F5;
+  background-image: radial-gradient(rgba(36, 41, 46, 0.02) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* 自定义纤细滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8D2C6;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B6AEA0;
+}
