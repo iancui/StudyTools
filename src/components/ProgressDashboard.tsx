@@ -2,12 +2,13 @@ import React from 'react';
 import { Award, Flame, Calendar, BookOpen, Trash2, CheckCircle2, Clock, Sparkles, Feather, Sun, Trophy, PenTool } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { UserProgress } from '../types/progress';
-import { GradeId, ExamQuestion } from '../types/chinese';
-import { SCHOLAR_RANKS, SYSTEM_BADGES, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, EXAMS_DATA } from '../data/curriculum';
+import { GradeId, ExamQuestion, CurriculumConfig } from '../types/chinese';
+import { SCHOLAR_RANKS, SYSTEM_BADGES } from '../data/curriculum';
 import { getCurrentScholarRank, getNextScholarRank } from '../utils/storage';
 
 interface ProgressDashboardProps {
   progress: UserProgress;
+  curriculum?: CurriculumConfig;
   onCheckIn: () => void;
   onRemoveWrongQuestion: (id: string) => void;
   onSelectGrade: (gradeId: GradeId) => void;
@@ -15,6 +16,7 @@ interface ProgressDashboardProps {
 
 export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   progress,
+  curriculum,
   onCheckIn,
   onRemoveWrongQuestion,
   onSelectGrade
@@ -22,9 +24,9 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   const currentRank = getCurrentScholarRank(progress.inkDrops);
   const nextRank = getNextScholarRank(progress.inkDrops);
 
-  const characters = CHARACTERS_DATA[progress.selectedGrade] || [];
-  const words = WORDS_DATA[progress.selectedGrade] || [];
-  const sentences = SENTENCES_DATA[progress.selectedGrade] || [];
+  const characters = curriculum?.characters[progress.selectedGrade] || [];
+  const words = curriculum?.words[progress.selectedGrade] || [];
+  const sentences = curriculum?.sentences[progress.selectedGrade] || [];
 
   const charMasteredCount = characters.filter(c => progress.masteredCharacterIds.includes(c.id)).length;
   const wordMasteredCount = words.filter(w => progress.masteredWordIds.includes(w.id)).length;
@@ -44,7 +46,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   const isCheckedInToday = progress.checkInHistory.includes(todayStr);
 
   // All wrong questions data across curriculum
-  const allExamQuestions: ExamQuestion[] = Object.values(EXAMS_DATA).flat();
+  const allExamQuestions: ExamQuestion[] = curriculum ? Object.values(curriculum.exams).flat() : [];
   const wrongQuestions = allExamQuestions.filter(q => progress.wrongQuestionIds.includes(q.id));
 
   const handleManualCheckIn = () => {

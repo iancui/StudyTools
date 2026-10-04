@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { Volume2, CheckCircle2, Circle, Eye, EyeOff, Sparkles, BookOpen, PenLine } from 'lucide-react';
 import { SentenceItem, GradeId } from '../types/chinese';
-import { SENTENCES_DATA } from '../data/curriculum';
 import { speakChinese } from '../utils/speech';
 
 interface SentenceModuleProps {
   gradeId: GradeId;
+  sentencesList?: SentenceItem[];
   completedIds: string[];
   onToggleComplete: (id: string) => void;
 }
 
 export const SentenceModule: React.FC<SentenceModuleProps> = ({
   gradeId,
+  sentencesList = [],
   completedIds,
   onToggleComplete
 }) => {
-  const sentences = SENTENCES_DATA[gradeId] || [];
+  const sentences = sentencesList;
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
   const [userInputs, setUserInputs] = useState<Record<string, string>>({});
