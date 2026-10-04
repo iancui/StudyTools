@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, Plus, Trash2, Download, Upload, RotateCcw, CheckCircle2, AlertCircle, BookOpen, Layers } from 'lucide-react';
 import { CurriculumConfig, GradeId, CharacterItem, WordItem } from '../types/chinese';
-import { GRADES_LIST } from '../data/grades';
+import { GRADES_LIST } from '../data/curriculum';
 import { exportCurriculumAsJSON, importCurriculumFromJSON, resetCurriculumToDefault } from '../utils/curriculumManager';
 
 interface CurriculumConfigModuleProps {

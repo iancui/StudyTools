@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
 import { BookOpen, CheckCircle2, Circle, Volume2, Sparkles, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GradeId } from '../types/chinese';
-import { PREVIEW_GUIDES, CHARACTERS_DATA, WORDS_DATA } from '../data/curriculum';
+import { GradeId, CharacterItem, WordItem } from '../types/chinese';
+import { PREVIEW_GUIDES } from '../data/curriculum';
 import { speakChinese } from '../utils/speech';
 
 interface PreviewModeProps {
   gradeId: GradeId;
+  charactersList?: CharacterItem[];
+  wordsList?: WordItem[];
   previewedItemIds: string[];
   onCompletePreview: (guideId: string) => void;
 }
 
 export const PreviewMode: React.FC<PreviewModeProps> = ({
   gradeId,
+  charactersList = [],
+  wordsList = [],
   previewedItemIds,
   onCompletePreview
 }) => {
   const guide = PREVIEW_GUIDES[gradeId] || PREVIEW_GUIDES['g3'];
-  const characters = CHARACTERS_DATA[gradeId] || [];
-  const words = WORDS_DATA[gradeId] || [];
+  const characters = charactersList;
+  const words = wordsList;
 
   const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
   const isCompleted = previewedItemIds.includes(`prev-${gradeId}`);

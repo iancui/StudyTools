@@ -3,20 +3,21 @@ import { Award, Clock, CheckCircle2, XCircle, AlertCircle, ArrowRight, RotateCcw
 import confetti from 'canvas-confetti';
 import { GradeId, ExamQuestion } from '../types/chinese';
 import { ExamRecord } from '../types/progress';
-import { EXAMS_DATA } from '../data/curriculum';
 
 interface ExamModeProps {
   gradeId: GradeId;
+  examsList?: ExamQuestion[];
   onSaveExamRecord: (record: ExamRecord) => void;
   onAddWrongQuestions: (questionIds: string[]) => void;
 }
 
 export const ExamMode: React.FC<ExamModeProps> = ({
   gradeId,
+  examsList = [],
   onSaveExamRecord,
   onAddWrongQuestions
 }) => {
-  const questions: ExamQuestion[] = EXAMS_DATA[gradeId] || EXAMS_DATA['g1'] || [];
+  const questions: ExamQuestion[] = examsList;
 
   const [hasStarted, setHasStarted] = useState(false);
   const [userAnswers, setUserAnswers] = useState<Record<string, number | string>>({});

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GradeId, MainTab, LearningMode, CurriculumConfig } from './types/chinese';
 import { UserProgress, EssayPracticeRecord, ExamRecord } from './types/progress';
-import { GRADES_LIST } from './data/grades';
+import { GRADES_LIST } from './data/curriculum';
 import { getInitialProgress, saveProgress, evaluateBadges } from './utils/storage';
 import { loadCurriculum, saveCurriculum } from './utils/curriculumManager';
 import { TopBar } from './components/TopBar';
@@ -193,6 +193,9 @@ export default function App() {
 
   const currentGradeCharacters = curriculum.characters[progress.selectedGrade] || [];
   const currentGradeWords = curriculum.words[progress.selectedGrade] || [];
+  const currentGradeSentences = curriculum.sentences[progress.selectedGrade] || [];
+  const currentGradeEssays = curriculum.essays[progress.selectedGrade] || [];
+  const currentGradeExams = curriculum.exams[progress.selectedGrade] || [];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-[#24292E] paper-texture">
@@ -220,6 +223,8 @@ export default function App() {
         {learningMode === 'preview' && (
           <PreviewMode
             gradeId={progress.selectedGrade}
+            charactersList={currentGradeCharacters}
+            wordsList={currentGradeWords}
             previewedItemIds={progress.previewedItemIds}
             onCompletePreview={handleCompletePreview}
           />
@@ -243,6 +248,7 @@ export default function App() {
         {learningMode === 'exam' && (
           <ExamMode
             gradeId={progress.selectedGrade}
+            examsList={currentGradeExams}
             onSaveExamRecord={handleSaveExam}
             onAddWrongQuestions={handleAddWrongQuestions}
           />
@@ -272,6 +278,7 @@ export default function App() {
             {activeTab === 'sentence' && (
               <SentenceModule
                 gradeId={progress.selectedGrade}
+                sentencesList={currentGradeSentences}
                 completedIds={progress.completedSentenceIds}
                 onToggleComplete={handleToggleSentence}
               />
@@ -280,6 +287,7 @@ export default function App() {
             {activeTab === 'essay' && (
               <EssayModule
                 gradeId={progress.selectedGrade}
+                essaysList={currentGradeEssays}
                 savedPractices={progress.essayPractices}
                 onSavePractice={handleSaveEssay}
               />
@@ -288,6 +296,7 @@ export default function App() {
             {activeTab === 'records' && (
               <ProgressDashboard
                 progress={progress}
+                curriculum={curriculum}
                 onCheckIn={handleCheckIn}
                 onRemoveWrongQuestion={handleRemoveWrongQuestion}
                 onSelectGrade={handleSelectGrade}

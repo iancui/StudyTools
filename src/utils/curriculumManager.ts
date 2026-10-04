@@ -1,16 +1,9 @@
-import { CurriculumConfig, GradeId, CharacterItem, WordItem, SentenceItem, EssayItem, ExamQuestion } from '../types/chinese';
-import { INITIAL_CHARACTERS } from '../data/characters';
-import { WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA } from '../data/curriculum';
+import { CurriculumConfig } from '../types/chinese';
+import { DEFAULT_CURRICULUM } from '../data/curriculum';
 
 const CURRICULUM_STORAGE_KEY = 'moyun_custom_curriculum_data_v1';
 
-export const getInitialDefaultCurriculum = (): CurriculumConfig => ({
-  characters: INITIAL_CHARACTERS,
-  words: WORDS_DATA,
-  sentences: SENTENCES_DATA,
-  essays: ESSAYS_DATA,
-  exams: EXAMS_DATA
-});
+export const getInitialDefaultCurriculum = (): CurriculumConfig => DEFAULT_CURRICULUM;
 
 export const loadCurriculum = (): CurriculumConfig => {
   if (typeof window === 'undefined') {

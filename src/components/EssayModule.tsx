@@ -3,21 +3,22 @@ import { BookOpen, PenTool, Sparkles, Award, Send, CheckCircle2, Quote, Lightbul
 import confetti from 'canvas-confetti';
 import { EssayItem, GradeId } from '../types/chinese';
 import { EssayPracticeRecord } from '../types/progress';
-import { ESSAYS_DATA } from '../data/curriculum';
 import { speakChinese } from '../utils/speech';
 
 interface EssayModuleProps {
   gradeId: GradeId;
+  essaysList?: EssayItem[];
   savedPractices: EssayPracticeRecord[];
   onSavePractice: (record: EssayPracticeRecord) => void;
 }
 
 export const EssayModule: React.FC<EssayModuleProps> = ({
   gradeId,
+  essaysList = [],
   savedPractices,
   onSavePractice
 }) => {
-  const essays = ESSAYS_DATA[gradeId] || [];
+  const essays = essaysList;
   const currentEssay = essays[0];
 
   const [activeTab, setActiveTab] = useState<'model' | 'editor' | 'materials'>('model');
