@@ -109,5 +109,6 @@ export interface CurriculumConfig {
 }
 
 // 工单 12: 新增 'home' 模式作为登录后默认入口 (学习首页)
-export type LearningMode = 'home' | 'learn' | 'preview' | 'review' | 'exam';
+// 工单: 英语学习 V1 - 新增 'english' 模式作为独立英语学习入口
+export type LearningMode = 'home' | 'learn' | 'preview' | 'review' | 'exam' | 'english';
 export type MainTab = 'character' | 'word' | 'sentence' | 'essay' | 'records' | 'settings';

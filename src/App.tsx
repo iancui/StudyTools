@@ -14,6 +14,8 @@ import { ReviewMode } from './components/ReviewMode';
 import { ExamMode } from './components/ExamMode';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { CurriculumConfigModule } from './components/CurriculumConfigModule';
+// 工单: 英语学习 V1 - 辞书基础
+import { EnglishModule } from './components/EnglishModule';
 import { stopSpeech } from './utils/speech';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
@@ -563,6 +565,11 @@ function AppContent() {
                 : undefined
             }
           />
+        )}
+
+        {/* 工单: 英语学习 V1 - 辞书基础. 独立的英语入口, 与中文学习逻辑分开. */}
+        {learningMode === 'english' && (
+          <EnglishModule />
         )}
 
         {/* If in Mode Learn: Switch by Main Tab */}

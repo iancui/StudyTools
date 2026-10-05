@@ -11,6 +11,8 @@ import sentenceProgressRouter from "./routes/sentence-progress.routes.js";
 import textbookRouter from "./routes/textbook.routes.js";
 import examRouter from "./routes/exam.routes.js";
 import essayRouter from "./routes/essay.routes.js";
+// 工单: 英语学习 V1 - 辞书基础
+import englishRouter from "./routes/english.routes.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -58,6 +60,12 @@ app.use("/api/textbook", textbookRouter);
 app.use("/api/exams", examRouter);
 // 工单 12: 句子仿写闭环 - POST /api/essays/practices
 app.use("/api/essays", essayRouter);
+// 工单: 英语学习 V1 - 辞书基础
+//   GET    /api/english/dictionaries
+//   GET    /api/english/dictionaries/:id
+//   GET    /api/english/dictionaries/:id/words
+//   POST   /api/english/dictionaries/import
+app.use("/api/english", englishRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

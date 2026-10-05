@@ -80,7 +80,9 @@ export const TopBar: React.FC<TopBarProps> = ({
     { id: 'preview', label: '预习', icon: '🌱' },
     { id: 'learn', label: '学习', icon: '📖' },
     { id: 'review', label: '复习', icon: '🔄' },
-    { id: 'exam', label: '测验', icon: '📝' }
+    { id: 'exam', label: '测验', icon: '📝' },
+    // 工单: 英语学习 V1 - 独立的英语入口, 与中文学习逻辑分开.
+    { id: 'english', label: '英语', icon: '🅰️' }
   ];
 
   return (
@@ -230,6 +232,17 @@ export const TopBar: React.FC<TopBarProps> = ({
               }`}
             >
               📝 模拟测验
+            </button>
+            {/* 工单: 英语学习 V1 - 独立英语入口, 与中文学习逻辑分开. */}
+            <button
+              onClick={() => onSelectMode('english')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap ${
+                learningMode === 'english'
+                  ? 'bg-white text-[#24292E] shadow-xs'
+                  : 'text-[#57606A] hover:text-[#24292E]'
+              }`}
+            >
+              🅰️ 英语
             </button>
           </div>
 
