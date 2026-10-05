@@ -7,7 +7,7 @@ export interface AccessTokenPayload {
   username: string;
 }
 
-function getJwtSecret(): string {
+export function getJwtSecret(): string {
   const secret = process.env.JWT_ACCESS_SECRET;
 
   if (!secret) {
