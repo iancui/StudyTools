@@ -19,6 +19,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { useProgressSync } from './hooks/useProgressSync';
 import { useDetailedProgressSync } from './hooks/useDetailedProgressSync';
+// 工单 06: 教材数据接入 (三年级上册第 1~5 课)
+import { useTextbookLessons, useTextbookLessonContent } from './hooks/useTextbook';
+import { LessonSelector } from './components/LessonSelector';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -26,6 +29,9 @@ function AppContent() {
   const [curriculum, setCurriculum] = useState<CurriculumConfig>(loadCurriculum);
   const [activeTab, setActiveTab] = useState<MainTab>('character');
   const [learningMode, setLearningMode] = useState<LearningMode>('learn');
+  // 工单 06: 教材课程选择 (三年级上册第 1~5 课)
+  // null 表示未选择课程, 走原 curriculum 本地数据
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
 
   // 学习进度云同步: 登录后从服务器恢复摘要, 学习时防抖 PUT 上传.
   // 内部全部 try/catch, 云端失败不影响本地学习.
@@ -35,6 +41,17 @@ function AppContent() {
   // 与 useProgressSync 互补, 仅处理 masteredCharacterIds /
   // masteredWordIds / completedSentenceIds 三个 ID 数组.
   useDetailedProgressSync({ progress, setProgress });
+
+  // 工单 06: 三年级时加载教材课程列表, 切换年级时清空课程选择
+  const { lessons: textbookLessons, loading: lessonsLoading, error: lessonsError } =
+    useTextbookLessons(progress.selectedGrade);
+  const { data: lessonContent, loading: contentLoading, error: contentError } =
+    useTextbookLessonContent(selectedLessonId);
+
+  // 切换年级时重置课程选择 (避免上一个年级的 lessonId 残留)
+  useEffect(() => {
+    setSelectedLessonId(null);
+  }, [progress.selectedGrade]);
 
   // Sync progress changes to localStorage and check for badge updates
   useEffect(() => {
@@ -211,6 +228,14 @@ function AppContent() {
   const currentGradeEssays = curriculum.essays[progress.selectedGrade] || [];
   const currentGradeExams = curriculum.exams[progress.selectedGrade] || [];
 
+  // 工单 06: 三年级 + 选中某课时, 用教材 API 的真实数据覆盖
+  // currentGrade* 数组, 让现有 CharacterModule / WordModule /
+  // SentenceModule 直接渲染数据库内容. 其他年级或未选课时走原 curriculum.
+  const usingTextbook = progress.selectedGrade === 'g3' && selectedLessonId !== null;
+  const displayCharacters = usingTextbook ? lessonContent.characters : currentGradeCharacters;
+  const displayWords = usingTextbook ? lessonContent.words : currentGradeWords;
+  const displaySentences = usingTextbook ? lessonContent.sentences : currentGradeSentences;
+
   // 应用启动时正在恢复登录状态:显示加载页
   if (isLoading) {
     return (
@@ -295,10 +320,33 @@ function AppContent() {
         {/* If in Mode Learn: Switch by Main Tab */}
         {learningMode === 'learn' && (
           <>
+            {/* 工单 06: 教材课程选择器 (仅三年级显示) */}
+            {progress.selectedGrade === 'g3' && (
+              <LessonSelector
+                lessons={textbookLessons}
+                loading={lessonsLoading}
+                error={lessonsError}
+                selectedLessonId={selectedLessonId}
+                onSelectLesson={setSelectedLessonId}
+              />
+            )}
+
+            {/* 工单 06: 教材内容加载提示 (选中课程后才显示) */}
+            {usingTextbook && contentLoading && (
+              <div className="p-4 text-center text-xs text-[#57606A] bg-[#FAF8F5] border border-[#E6E1D8] rounded-xl">
+                正在加载教材内容...
+              </div>
+            )}
+            {usingTextbook && contentError && (
+              <div className="p-4 text-center text-xs text-[#B83A2D] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl">
+                教材内容加载失败: {contentError}
+              </div>
+            )}
+
             {activeTab === 'character' && (
               <CharacterModule
                 gradeId={progress.selectedGrade}
-                charactersList={currentGradeCharacters}
+                charactersList={displayCharacters}
                 masteredIds={progress.masteredCharacterIds}
                 onToggleMaster={handleToggleCharMaster}
               />
@@ -307,7 +355,7 @@ function AppContent() {
             {activeTab === 'word' && (
               <WordModule
                 gradeId={progress.selectedGrade}
-                wordsList={currentGradeWords}
+                wordsList={displayWords}
                 masteredIds={progress.masteredWordIds}
                 onToggleMaster={handleToggleWordMaster}
               />
@@ -316,7 +364,7 @@ function AppContent() {
             {activeTab === 'sentence' && (
               <SentenceModule
                 gradeId={progress.selectedGrade}
-                sentencesList={currentGradeSentences}
+                sentencesList={displaySentences}
                 completedIds={progress.completedSentenceIds}
                 onToggleComplete={handleToggleSentence}
               />
