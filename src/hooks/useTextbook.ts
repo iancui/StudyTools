@@ -221,6 +221,102 @@ export function useTextbookLessonContent(
 }
 
 // ------------------------------------------------------------
+// 4. 多课程内容聚合 hook (工单 13: 复习范围选择)
+// ------------------------------------------------------------
+//
+// 用于"复习范围"功能: 传入一组 lessonId, 并行拉取每课的
+// chars/words/sentences, 聚合成统一的 CharacterItem[] /
+// WordItem[] / SentenceItem[]. 数据范围严格按 lessonIds 过滤,
+// "期中复习"只包含前半段课程, "期末复习"包含全部已存在课程.
+//
+// 复用 toCharacterItem / toWordItem / toSentenceItem 转换函数,
+// 不引入新依赖, 不修改数据库.
+
+export interface UseTextbookMultiLessonsContentResult {
+  data: TextbookLessonContent;
+  loading: boolean;
+  error: string | null;
+}
+
+/**
+ * 加载多课内容, 聚合成统一的 chars/words/sentences.
+ * lessonIds 为空数组时不发请求, 返回空内容.
+ */
+export function useTextbookMultiLessonsContent(
+  lessonIds: string[]
+): UseTextbookMultiLessonsContentResult {
+  const [data, setData] = useState<TextbookLessonContent>(
+    EMPTY_CONTENT
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 把 lessonIds 数组序列化成稳定字符串作为依赖, 避免数组引用变化触发重复请求.
+  const key = lessonIds.join(",");
+
+  useEffect(() => {
+    if (!key) {
+      setData(EMPTY_CONTENT);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const ids = key.split(",").filter(Boolean);
+
+    // 为每个 lessonId 并行拉取 4 个资源, 然后合并.
+    const lessonPromises = ids.map((id) =>
+      Promise.all([
+        getLesson(id),
+        listCharacters(id),
+        listWords(id),
+        listSentences(id),
+      ]).then(([lesson, chars, words, sentences]) => ({
+        lesson,
+        chars: chars.map(toCharacterItem),
+        words: words.map((w) => toWordItem(w, lesson)),
+        sentences: sentences.map((s) => toSentenceItem(s, lesson)),
+      }))
+    );
+
+    Promise.all(lessonPromises)
+      .then((results) => {
+        if (cancelled) return;
+        // 聚合所有课程的内容. lesson 取第一个非空作为代表 (用于 ReviewMode 的 lessonTitle).
+        const merged: TextbookLessonContent = {
+          characters: results.flatMap((r) => r.chars),
+          words: results.flatMap((r) => r.words),
+          sentences: results.flatMap((r) => r.sentences),
+          lesson:
+            results.find((r) => r.lesson)?.lesson ?? null,
+        };
+        setData(merged);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.warn("加载多课教材内容失败:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "加载多课教材内容失败"
+        );
+        setData(EMPTY_CONTENT);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  return { data, loading, error };
+}
+
+// ------------------------------------------------------------
 // 3. DTO → Item 转换 (保留组件兼容性, 缺字段用合理默认值)
 //
 // ID 生成 (工单 07A, 详见文件头注释):

@@ -57,12 +57,13 @@ export const TopBar: React.FC<TopBarProps> = ({
         </a>
 
         {/* Zone 2: 4-6 clean text navigation links */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#57606A]">
+        {/* 工单 13: 窄屏不再 display:none, 改为横向滚动并隐藏滚动条, 保证生字/词语/句子/作文/档案/配置始终可操作 */}
+        <nav className="flex items-center gap-4 sm:gap-6 text-sm font-medium text-[#57606A] overflow-x-auto scrollbar-hide -mx-1 px-1">
           {navLinks.map((item) => (
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`hover:text-[#24292E] transition-colors whitespace-nowrap ${
+              className={`hover:text-[#24292E] transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === item.id
                   ? 'text-[#B83A2D] font-bold border-b-2 border-[#B83A2D] py-1'
                   : ''
@@ -119,10 +120,21 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="border-t border-[#EDE7DD] bg-white/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
           {/* Learning Mode Switcher */}
-          <div className="flex items-center gap-1 p-0.5 bg-[#EFECE6] rounded-lg text-xs">
+          {/* 工单 13: 窄屏改为横向滚动, 不再 wrap 挤压学习内容; 新增 "首页" 按钮便于回到学习首页 */}
+          <div className="flex items-center gap-1 p-0.5 bg-[#EFECE6] rounded-lg text-xs overflow-x-auto scrollbar-hide max-w-full">
+            <button
+              onClick={() => onSelectMode('home')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
+                learningMode === 'home'
+                  ? 'bg-white text-[#24292E] shadow-xs'
+                  : 'text-[#57606A] hover:text-[#24292E]'
+              }`}
+            >
+              🏠 首页
+            </button>
             <button
               onClick={() => onSelectMode('learn')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
                 learningMode === 'learn'
                   ? 'bg-white text-[#24292E] shadow-xs'
                   : 'text-[#57606A] hover:text-[#24292E]'
@@ -132,7 +144,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
             <button
               onClick={() => onSelectMode('preview')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
                 learningMode === 'preview'
                   ? 'bg-white text-[#24292E] shadow-xs'
                   : 'text-[#57606A] hover:text-[#24292E]'
@@ -142,7 +154,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
             <button
               onClick={() => onSelectMode('review')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
                 learningMode === 'review'
                   ? 'bg-white text-[#24292E] shadow-xs'
                   : 'text-[#57606A] hover:text-[#24292E]'
@@ -152,7 +164,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
             <button
               onClick={() => onSelectMode('exam')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
                 learningMode === 'exam'
                   ? 'bg-white text-[#24292E] shadow-xs'
                   : 'text-[#57606A] hover:text-[#24292E]'
@@ -163,7 +175,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
 
           {/* Active Grade & Theme Subtitle */}
-          <div className="flex items-center gap-2 text-xs text-[#57606A]">
+          {/* 工单 13: 窄屏隐藏副标题, 避免与 mode 切换器争夺宽度 */}
+          <div className="hidden lg:flex items-center gap-2 text-xs text-[#57606A]">
             <span className="font-semibold text-[#24292E]">{currentGrade.name}</span>
             <span aria-hidden="true">·</span>
             <span>{currentGrade.stageName}</span>

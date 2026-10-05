@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GradeId, MainTab, LearningMode, CurriculumConfig } from './types/chinese';
 import { UserProgress, EssayPracticeRecord, ExamRecord } from './types/progress';
 import { GRADES_LIST } from './data/curriculum';
@@ -20,8 +20,10 @@ import { AuthPage } from './components/AuthPage';
 import { useProgressSync } from './hooks/useProgressSync';
 import { useDetailedProgressSync } from './hooks/useDetailedProgressSync';
 // 工单 06: 教材数据接入 (三年级上册第 1~5 课)
-import { useTextbookLessons, useTextbookLessonContent } from './hooks/useTextbook';
+import { useTextbookLessons, useTextbookLessonContent, useTextbookMultiLessonsContent } from './hooks/useTextbook';
 import { LessonSelector } from './components/LessonSelector';
+import { LessonNav } from './components/LessonNav';
+import type { ReviewScope } from './components/ReviewMode';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout, accessToken } = useAuth();
@@ -36,6 +38,14 @@ function AppContent() {
   // 工单 06: 教材课程选择 (三年级上册第 1~5 课)
   // null 表示未选择课程, 走原 curriculum 本地数据
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+
+  // 工单 13: 复习范围选择.
+  // - current_lesson: 只复习当前正在学习的课程
+  // - selected:       用户多选课程
+  // - midterm:        期中复习 (前半段课程)
+  // - final:          期末复习 (本学期全部课程)
+  const [reviewScope, setReviewScope] = useState<ReviewScope>('current_lesson');
+  const [reviewSelectedLessonIds, setReviewSelectedLessonIds] = useState<string[]>([]);
 
   // 工单 12: 用户身份变化 (登录/登出/切换账号) 时, 重新加载该用户
   // 专属的 localStorage 进度. 这样 A 登出后 B 登录不会看到 A 的数据,
@@ -63,6 +73,29 @@ function AppContent() {
     useTextbookLessons(progress.selectedGrade);
   const { data: lessonContent, loading: contentLoading, error: contentError } =
     useTextbookLessonContent(selectedLessonId);
+
+  // 工单 13: 复习范围选择 - 根据 scope 计算 lessonIds, 调用
+  // useTextbookMultiLessonsContent 拉取多课数据. lessonIds 在变化时
+  // 会自动重新拉取, 选择的范围会真正影响复习内容 (不只是改标题).
+  // - current_lesson: 不需要额外拉取, 复用单课 lessonContent
+  // - selected:       用户多选的 lessonIds
+  // - midterm:        课程列表前半段
+  // - final:          课程列表全部
+  const reviewLessonIds = useMemo<string[]>(() => {
+    if (progress.selectedGrade !== 'g3' || textbookLessons.length === 0) return [];
+    const sorted = [...textbookLessons].sort((a, b) => a.lessonNo - b.lessonNo);
+    if (reviewScope === 'current_lesson') return [];
+    if (reviewScope === 'selected') return reviewSelectedLessonIds;
+    if (reviewScope === 'midterm') {
+      const half = Math.ceil(sorted.length / 2);
+      return sorted.slice(0, half).map((l) => l.id);
+    }
+    if (reviewScope === 'final') return sorted.map((l) => l.id);
+    return [];
+  }, [progress.selectedGrade, textbookLessons, reviewScope, reviewSelectedLessonIds]);
+
+  // 只有需要多课数据时才启用 hook. current_lesson 复用单课数据.
+  const reviewMulti = useTextbookMultiLessonsContent(reviewLessonIds);
 
   // 切换年级时重置课程选择 (避免上一个年级的 lessonId 残留)
   useEffect(() => {
@@ -252,6 +285,41 @@ function AppContent() {
   const displayWords = usingTextbook ? lessonContent.words : currentGradeWords;
   const displaySentences = usingTextbook ? lessonContent.sentences : currentGradeSentences;
 
+  // 工单 13: 复习范围数据. 在三年级教材模式下:
+  // - current_lesson: 复用 lessonContent (单课, 与 learn 模式一致)
+  // - selected / midterm / final: 用 reviewMulti.data (多课聚合)
+  // 其他年级或非教材模式: 回退到 curriculum 数据.
+  const reviewUsingTextbook = progress.selectedGrade === 'g3';
+  const reviewDisplayCharacters = reviewUsingTextbook
+    ? (reviewScope === 'current_lesson' && selectedLessonId
+        ? lessonContent.characters
+        : reviewMulti.data.characters)
+    : currentGradeCharacters;
+  const reviewDisplayWords = reviewUsingTextbook
+    ? (reviewScope === 'current_lesson' && selectedLessonId
+        ? lessonContent.words
+        : reviewMulti.data.words)
+    : currentGradeWords;
+  const reviewDisplaySentences = reviewUsingTextbook
+    ? (reviewScope === 'current_lesson' && selectedLessonId
+        ? lessonContent.sentences
+        : reviewMulti.data.sentences)
+    : currentGradeSentences;
+  // 复习概览标题: 多课时显示"X 课范围", 单课时显示课文名
+  const reviewLessonTitle = reviewUsingTextbook
+    ? (reviewScope === 'current_lesson' && lessonContent.lesson
+        ? lessonContent.lesson.title
+        : (reviewMulti.data.lesson
+            ? `多课复习: ${reviewMulti.data.lesson.title} 等`
+            : (reviewScope === 'final'
+                ? '期末复习范围'
+                : reviewScope === 'midterm'
+                  ? '期中复习范围'
+                  : reviewScope === 'selected'
+                    ? '自定义范围复习'
+                    : undefined)))
+    : undefined;
+
   // 应用启动时正在恢复登录状态:显示加载页
   if (isLoading) {
     return (
@@ -397,10 +465,10 @@ function AppContent() {
           <ReviewMode
             gradeId={progress.selectedGrade}
             // 工单 10: 三年级选中教材课程时, 复习页用数据库教材内容;
-            // 其他年级或未选课时回退到原 curriculum 数据.
-            charactersList={usingTextbook ? displayCharacters : currentGradeCharacters}
-            wordsList={usingTextbook ? displayWords : currentGradeWords}
-            sentencesList={usingTextbook ? displaySentences : undefined}
+            // 工单 13: 改为按 reviewScope 重新计算数据, 范围变化会真正影响复习内容.
+            charactersList={reviewUsingTextbook ? reviewDisplayCharacters : currentGradeCharacters}
+            wordsList={reviewUsingTextbook ? reviewDisplayWords : currentGradeWords}
+            sentencesList={reviewUsingTextbook ? reviewDisplaySentences : undefined}
             masteredCharIds={progress.masteredCharacterIds}
             masteredWordIds={progress.masteredWordIds}
             completedSentenceIds={progress.completedSentenceIds}
@@ -409,11 +477,30 @@ function AppContent() {
             onToggleSentenceComplete={handleToggleSentence}
             onEarnInk={handleEarnInk}
             // 工单 10: 教材模式下传课文标题 + 提供进入学习模块入口
-            lessonTitle={usingTextbook ? lessonContent.lesson?.title : undefined}
-            onEnterLearn={usingTextbook ? (tab) => {
+            lessonTitle={reviewUsingTextbook ? reviewLessonTitle : undefined}
+            onEnterLearn={reviewUsingTextbook ? (tab) => {
               setActiveTab(tab);
               setLearningMode('learn');
             } : undefined}
+            // 工单 13: 复习范围选择 props (仅三年级教材模式才提供)
+            reviewScope={reviewScope}
+            onSelectReviewScope={
+              reviewUsingTextbook
+                ? (scope) => {
+                    setReviewScope(scope);
+                    // 切换到"选择课程"时, 默认勾选当前已选课程, 方便用户继续操作
+                    if (scope === 'selected' && selectedLessonId && reviewSelectedLessonIds.length === 0) {
+                      setReviewSelectedLessonIds([selectedLessonId]);
+                    }
+                  }
+                : undefined
+            }
+            lessons={reviewUsingTextbook ? textbookLessons : []}
+            selectedLessonIds={reviewSelectedLessonIds}
+            onSelectLessonIds={
+              reviewUsingTextbook ? setReviewSelectedLessonIds : undefined
+            }
+            scopeLoading={reviewUsingTextbook ? reviewMulti.loading : false}
           />
         )}
 
@@ -462,7 +549,12 @@ function AppContent() {
         {/* If in Mode Learn: Switch by Main Tab */}
         {learningMode === 'learn' && (
           <>
-            {/* 工单 06: 教材课程选择器 (仅三年级显示) */}
+            {/* 工单 13: 课程学习模式优化.
+                - 选中课程后, 在顶部固定显示当前课程标题 + 上一课/下一课 + 生字/词语/句子切换.
+                - 切换生字/词语/句子不会重新选择课程.
+                - 切换上一课/下一课后保持当前 activeTab 不变 (例如正在句子就仍是句子). */}
+
+            {/* 教材课程选择器 (仅三年级显示). 在窄屏可横向滚动. */}
             {progress.selectedGrade === 'g3' && (
               <LessonSelector
                 lessons={textbookLessons}
@@ -470,6 +562,17 @@ function AppContent() {
                 error={lessonsError}
                 selectedLessonId={selectedLessonId}
                 onSelectLesson={setSelectedLessonId}
+              />
+            )}
+
+            {/* 工单 13: 课程内导航条 (仅当选中了某课才显示). */}
+            {usingTextbook && lessonContent.lesson && (
+              <LessonNav
+                lesson={lessonContent.lesson}
+                lessons={textbookLessons}
+                activeTab={activeTab}
+                onSelectTab={(tab) => setActiveTab(tab)}
+                onSelectLessonId={(id) => setSelectedLessonId(id)}
               />
             )}
 
@@ -482,6 +585,13 @@ function AppContent() {
             {usingTextbook && contentError && (
               <div className="p-4 text-center text-xs text-[#B83A2D] bg-[#FEF2F2] border border-[#FCA5A5] rounded-xl">
                 教材内容加载失败: {contentError}
+              </div>
+            )}
+
+            {/* 工单 13: 当处于教材学习模式但还没选课时, 给出引导提示 */}
+            {progress.selectedGrade === 'g3' && !usingTextbook && textbookLessons.length > 0 && (
+              <div className="p-6 text-center text-xs text-[#57606A] bg-white border border-[#E6E1D8] rounded-xl">
+                请在上方选择一个课程, 进入后即可在 生字 / 词语 / 句子 之间直接切换, 不需要退出再重进.
               </div>
             )}
 

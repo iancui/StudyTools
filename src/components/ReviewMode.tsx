@@ -1,8 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare, ArrowRight } from 'lucide-react';
+import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare, ArrowRight, BookOpen, Calendar, ListFilter } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GradeId, CharacterItem, WordItem, SentenceItem, MainTab } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
+import { LessonDTO } from '../api/textbook';
+
+// 工单 13: 复习范围类型.
+// - current_lesson: 只复习当前正在学习的课程 (App.tsx 传入该课的数据)
+// - selected:       用户从课程列表中多选, 复习选中课程的内容
+// - midterm:        期中复习, 复习前半段课程
+// - final:          期末复习, 复习本学期全部已存在课程
+export type ReviewScope = 'current_lesson' | 'selected' | 'midterm' | 'final';
 
 interface ReviewModeProps {
   gradeId: GradeId;
@@ -23,6 +31,16 @@ interface ReviewModeProps {
   // 工单 10: 教材模式下传课文标题 + 进入学习模块入口
   lessonTitle?: string;
   onEnterLearn?: (tab: MainTab) => void;
+  // 工单 13: 复习范围选择. App.tsx 根据 scope 重新计算并传入
+  // charactersList/wordsList/sentencesList, 范围变化会真正影响复习内容.
+  reviewScope?: ReviewScope;
+  onSelectReviewScope?: (scope: ReviewScope) => void;
+  // 课程列表 + 用户多选的 lessonIds (用于 "选择课程" 模式 UI)
+  lessons?: LessonDTO[];
+  selectedLessonIds?: string[];
+  onSelectLessonIds?: (ids: string[]) => void;
+  // 多课数据加载状态 (期中/期末/多选会触发额外加载)
+  scopeLoading?: boolean;
 }
 
 export const ReviewMode: React.FC<ReviewModeProps> = ({
@@ -39,8 +57,23 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   onEarnInk,
   lessonTitle,
   onEnterLearn,
+  reviewScope = 'current_lesson',
+  onSelectReviewScope,
+  lessons = [],
+  selectedLessonIds = [],
+  onSelectLessonIds,
+  scopeLoading = false,
 }) => {
   const [reviewTab, setReviewTab] = useState<'flashcard' | 'dictation' | 'needs_work'>('flashcard');
+
+  // 多选课程勾选切换 (仅在 "选择课程" 模式下使用)
+  const handleToggleLesson = (id: string) => {
+    if (!onSelectLessonIds) return;
+    const next = selectedLessonIds.includes(id)
+      ? selectedLessonIds.filter((x) => x !== id)
+      : [...selectedLessonIds, id];
+    onSelectLessonIds(next);
+  };
 
   // Random and selection filter
   const [sampleCount, setSampleCount] = useState<number | 'all'>('all');
@@ -205,6 +238,101 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 工单 13: 复习范围选择. 仅在教材模式 (有 lessons + onSelectReviewScope) 下显示.
+          选择的范围会真正影响复习内容 (App.tsx 重新拉取并传入对应数据). */}
+      {typeof onSelectReviewScope === 'function' && lessons.length > 0 && (
+        <div className="bg-white border border-[#E6E1D8] rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <ListFilter size={15} className="text-[#B83A2D]" />
+            <h3 className="text-sm font-bold font-serif-sc text-[#24292E]">
+              复习范围
+            </h3>
+            <span className="text-xs text-[#8C8273]">
+              · 选择范围后, 生字 / 词语 / 句子会严格按所选课程过滤
+            </span>
+          </div>
+
+          {/* 4 个范围按钮 (横向滚动, 窄屏不挤压) */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            {([
+              { id: 'current_lesson', label: '当前课程', icon: <BookOpen size={13} /> },
+              { id: 'selected', label: '选择课程', icon: <CheckSquare size={13} /> },
+              { id: 'midterm', label: '期中复习', icon: <Calendar size={13} /> },
+              { id: 'final', label: '期末复习', icon: <Layers size={13} /> },
+            ] as { id: ReviewScope; label: string; icon: React.ReactNode }[]).map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => onSelectReviewScope(opt.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 transition-colors ${
+                  reviewScope === opt.id
+                    ? 'bg-[#B83A2D] text-white'
+                    : 'bg-[#FAF8F5] text-[#57606A] hover:bg-[#F2ECE0] border border-[#DDD7CD]'
+                }`}
+              >
+                {opt.icon}
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* "选择课程" 模式: 显示课程勾选列表 */}
+          {reviewScope === 'selected' && (
+            <div className="pt-3 border-t border-[#F0ECE4]">
+              <div className="text-xs text-[#57606A] mb-2">
+                勾选要复习的课程 (可多选):
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {lessons.map((l) => {
+                  const checked = selectedLessonIds.includes(l.id);
+                  return (
+                    <label
+                      key={l.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs transition-colors ${
+                        checked
+                          ? 'bg-[#FAF6EE] border-[#B83A2D] text-[#24292E]'
+                          : 'bg-[#FAF8F5] border-[#DDD7CD] text-[#57606A] hover:bg-[#F2ECE0]'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleToggleLesson(l.id)}
+                        className="accent-[#B83A2D]"
+                      />
+                      <span className="font-mono">L{l.lessonNo}</span>
+                      <span className="font-serif-sc">{l.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-[#8C8273] mt-2">
+                已选 {selectedLessonIds.length} / {lessons.length} 课
+              </div>
+            </div>
+          )}
+
+          {/* 期中复习说明 */}
+          {reviewScope === 'midterm' && (
+            <div className="text-[11px] text-[#57606A] bg-[#FAF8F5] p-2 rounded border border-[#EDE7DC]">
+              复习范围: 本学期前半段课程 (共 {Math.ceil(lessons.length / 2)} 课).
+              加载完成后, 下方复习内容会按这些课程过滤.
+            </div>
+          )}
+          {reviewScope === 'final' && (
+            <div className="text-[11px] text-[#57606A] bg-[#FAF8F5] p-2 rounded border border-[#EDE7DC]">
+              复习范围: 本学期全部课程 (共 {lessons.length} 课).
+            </div>
+          )}
+
+          {/* 多课数据加载状态 */}
+          {scopeLoading && (
+            <div className="text-xs text-[#57606A] bg-[#FAF8F5] p-2 rounded border border-[#E6E1D8]">
+              正在加载所选课程的内容...
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 工单 10: 教材模式下展示课文复习概览 (课文名称 + 三类进度统计 + 进入学习入口) */}
       {typeof onEnterLearn === 'function' && lessonTitle && (

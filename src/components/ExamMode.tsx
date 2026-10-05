@@ -371,7 +371,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               ) : saveServerError ? (
                 <span className="text-[#DC2626]">云端同步失败：{saveServerError}</span>
               ) : (
-                <span>考试记录已同步到云端 exam_records 表</span>
+                <span>考试成绩已自动保存到云端</span>
               )}
               <span className="text-[#8C8273]">滑动下方查看每道题的详尽答案解析</span>
             </div>

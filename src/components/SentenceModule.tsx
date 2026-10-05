@@ -293,7 +293,7 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
                       )}
                     </button>
                     <span className="text-[11px] text-[#8C8273]">
-                      提交后由后端规则批改, 写入 essay_practices 表
+                      提交后会生成评分和学习建议
                     </span>
                   </div>
 
@@ -318,7 +318,7 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
                         <strong>反馈:</strong> {grading[item.id]?.result?.feedback}
                       </div>
                       <div className="text-[11px] text-[#8C8273]">
-                        字数: {grading[item.id]?.result?.wordCount} · 记录 ID: {grading[item.id]?.result?.id}
+                        字数: {grading[item.id]?.result?.wordCount}
                       </div>
                     </div>
                   )}
