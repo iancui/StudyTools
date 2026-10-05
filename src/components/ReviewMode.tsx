@@ -1,16 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare, ArrowRight, BookOpen, Calendar, ListFilter } from 'lucide-react';
+import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare, ArrowRight, BookOpen, Calendar, ListFilter, Camera, Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GradeId, CharacterItem, WordItem, SentenceItem, MainTab } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
 import { LessonDTO } from '../api/textbook';
+import {
+  ReviewScope,
+  ReviewQuestion,
+  AnswerRecord,
+  buildReviewQuestions,
+  summarizeReviewSession,
+  previewReviewScope,
+  questionTypeLabel,
+} from '../utils/reviewAlgorithm';
 
-// 工单 13: 复习范围类型.
-// - current_lesson: 只复习当前正在学习的课程 (App.tsx 传入该课的数据)
-// - selected:       用户从课程列表中多选, 复习选中课程的内容
-// - midterm:        期中复习, 复习前半段课程
-// - final:          期末复习, 复习本学期全部已存在课程
-export type ReviewScope = 'current_lesson' | 'selected' | 'midterm' | 'final';
+// 工单 14: 复习范围类型重新定义在 utils/reviewAlgorithm.ts, 这里 re-export.
+// 新增 'today' (今日复习), 优先级最高: 已到复习时间 + 最近答错 + 尚未掌握.
+export type { ReviewScope } from '../utils/reviewAlgorithm';
 
 interface ReviewModeProps {
   gradeId: GradeId;
@@ -64,7 +70,10 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   onSelectLessonIds,
   scopeLoading = false,
 }) => {
-  const [reviewTab, setReviewTab] = useState<'flashcard' | 'dictation' | 'needs_work'>('flashcard');
+  // 工单 14: 新增 'smart' 子页签作为默认入口, 使用 reviewAlgorithm.ts
+  // 生成的混合题型 (看字回忆拼音 / 看拼音回忆字 / 听音选字 / 词语识别 / 句子填空).
+  // 原 flashcard / dictation / needs_work 子页签保留, 不影响已有功能.
+  const [reviewTab, setReviewTab] = useState<'smart' | 'flashcard' | 'dictation' | 'needs_work'>('smart');
 
   // 多选课程勾选切换 (仅在 "选择课程" 模式下使用)
   const handleToggleLesson = (id: string) => {
@@ -202,10 +211,21 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center p-1 bg-[#EBE7DF] rounded-lg">
+        <div className="flex items-center p-1 bg-[#EBE7DF] rounded-lg overflow-x-auto scrollbar-hide">
+          <button
+            onClick={() => setReviewTab('smart')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 transition-colors ${
+              reviewTab === 'smart'
+                ? 'bg-white text-[#24292E] shadow-xs'
+                : 'text-[#57606A] hover:text-[#24292E]'
+            }`}
+          >
+            <Sparkles size={13} />
+            <span>智能复习</span>
+          </button>
           <button
             onClick={() => setReviewTab('flashcard')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 transition-colors ${
               reviewTab === 'flashcard'
                 ? 'bg-white text-[#24292E] shadow-xs'
                 : 'text-[#57606A] hover:text-[#24292E]'
@@ -216,7 +236,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           </button>
           <button
             onClick={() => setReviewTab('dictation')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap shrink-0 transition-colors ${
               reviewTab === 'dictation'
                 ? 'bg-white text-[#24292E] shadow-xs'
                 : 'text-[#57606A] hover:text-[#24292E]'
@@ -253,9 +273,10 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
             </span>
           </div>
 
-          {/* 4 个范围按钮 (横向滚动, 窄屏不挤压) */}
+          {/* 工单 14: 5 个范围按钮 (今日复习优先级最高, 排第一). */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
             {([
+              { id: 'today', label: '今日复习', icon: <Sparkles size={13} /> },
               { id: 'current_lesson', label: '当前课程', icon: <BookOpen size={13} /> },
               { id: 'selected', label: '选择课程', icon: <CheckSquare size={13} /> },
               { id: 'midterm', label: '期中复习', icon: <Calendar size={13} /> },
@@ -309,6 +330,13 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
               <div className="text-[11px] text-[#8C8273] mt-2">
                 已选 {selectedLessonIds.length} / {lessons.length} 课
               </div>
+            </div>
+          )}
+
+          {/* 工单 14: 今日复习说明. */}
+          {reviewScope === 'today' && (
+            <div className="text-[11px] text-[#57606A] bg-[#FAF8F5] p-2 rounded border border-[#EDE7DC]">
+              复习范围: 已到复习时间的内容 + 最近答错的内容 + 尚未掌握的内容. 系统会按"主动回忆 + 间隔复习 + 错误优先 + 混合练习"自动出题.
             </div>
           )}
 
@@ -397,6 +425,22 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           </button>
         )}
       </div>
+
+      {/* SUB-TAB 0: SMART REVIEW (工单 14, 默认入口) */}
+      {reviewTab === 'smart' && (
+        <SmartReviewFlow
+          reviewScope={reviewScope}
+          charactersList={charactersList}
+          wordsList={wordsList}
+          sentencesList={sentencesList}
+          masteredCharIds={masteredCharIds}
+          masteredWordIds={masteredWordIds}
+          completedSentenceIds={completedSentenceIds}
+          onEarnInk={onEarnInk}
+          onToggleCharMaster={onToggleCharMaster}
+          onToggleWordMaster={onToggleWordMaster}
+        />
+      )}
 
       {/* SUB-TAB 1: MEMORY FLASHCARD */}
       {reviewTab === 'flashcard' && currentCard && (
@@ -672,6 +716,417 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
 };
 
 // ------------------------------------------------------------
+// 工单 14: SmartReviewFlow - 智能复习流 (默认入口)
+// ------------------------------------------------------------
+// 阶段:
+//   1) preview: 选定范围后显示 "X 个生字 / X 个词语 / X 个句子 / X 分钟" + [开始复习]
+//   2) in-progress: 按顺序显示 buildReviewQuestions 生成的混合题型, 记录 AnswerRecord
+//   3) finished: 显示正确数 / 错误数 / 需要再复习 / 学习建议
+//
+// 算法逻辑全部委托给 utils/reviewAlgorithm.ts, 本组件只负责 UI 与状态.
+// ------------------------------------------------------------
+
+interface SmartReviewFlowProps {
+  reviewScope: ReviewScope;
+  charactersList: CharacterItem[];
+  wordsList: WordItem[];
+  sentencesList: SentenceItem[];
+  masteredCharIds: string[];
+  masteredWordIds: string[];
+  completedSentenceIds: string[];
+  onEarnInk: (amount: number) => void;
+  onToggleCharMaster: (id: string) => void;
+  onToggleWordMaster: (id: string) => void;
+}
+
+type SmartPhase = 'preview' | 'in_progress' | 'finished';
+
+const SmartReviewFlow: React.FC<SmartReviewFlowProps> = ({
+  reviewScope,
+  charactersList,
+  wordsList,
+  sentencesList,
+  masteredCharIds,
+  masteredWordIds,
+  completedSentenceIds,
+  onEarnInk,
+  onToggleCharMaster,
+}) => {
+  const [phase, setPhase] = useState<SmartPhase>('preview');
+  const [userAnswer, setUserAnswer] = useState('');
+  const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+  const [records, setRecords] = useState<AnswerRecord[]>([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  // 第一版无 wrongIds 数据 (没有独立的"错题本"), 暂时用"未掌握"作近似.
+  // 这样 shouldReviewItem 会把所有未掌握 + 未完成的项目都视为需要今日复习.
+  const wrongIds: string[] = useMemo(() => [], []);
+
+  // 范围预览 (X 个生字 / X 个词语 / X 个句子 / X 分钟)
+  const scopePreview = useMemo(
+    () =>
+      previewReviewScope({
+        characters: charactersList,
+        words: wordsList,
+        sentences: sentencesList,
+        masteredCharIds,
+        masteredWordIds,
+        completedSentenceIds,
+        wrongIds,
+      }),
+    [
+      charactersList,
+      wordsList,
+      sentencesList,
+      masteredCharIds,
+      masteredWordIds,
+      completedSentenceIds,
+      wrongIds,
+    ]
+  );
+
+  // 当前选定范围应复习的题目 (混合题型 + 错题优先 + 未掌握优先)
+  const questions = useMemo<ReviewQuestion[]>(() => {
+    // today 范围: shouldReviewItem 筛选后只保留需要复习的
+    // 其他范围 (current_lesson / selected / midterm / final): App.tsx 已经按
+    // 范围重新拉取并传入 charactersList / wordsList / sentencesList, 这里直接出题.
+    return buildReviewQuestions({
+      characters: charactersList,
+      words: wordsList,
+      sentences: sentencesList,
+      masteredCharIds,
+      masteredWordIds,
+      completedSentenceIds,
+      wrongIds,
+      maxQuestions: reviewScope === 'today' ? 15 : 20,
+    });
+  }, [
+    charactersList,
+    wordsList,
+    sentencesList,
+    masteredCharIds,
+    masteredWordIds,
+    completedSentenceIds,
+    wrongIds,
+    reviewScope,
+  ]);
+
+  const currentQ = questions[currentIdx];
+
+  // 开始复习
+  const handleStart = () => {
+    if (questions.length === 0) return;
+    setPhase('in_progress');
+    setCurrentIdx(0);
+    setRecords([]);
+    setUserAnswer('');
+    setFeedback(null);
+  };
+
+  // 提交答案
+  const handleSubmit = () => {
+    if (!currentQ || feedback !== null) return;
+    const clean = userAnswer.trim().toLowerCase();
+    const ans = currentQ.answer.trim().toLowerCase();
+    const isCorrect = clean !== '' && clean === ans;
+    setFeedback(isCorrect ? 'correct' : 'wrong');
+    setRecords((prev) => [
+      ...prev,
+      { question: currentQ, userAnswer: userAnswer.trim(), isCorrect },
+    ]);
+    if (isCorrect) {
+      confetti({ particleCount: 25, spread: 45, origin: { y: 0.6 } });
+    }
+  };
+
+  // 下一题
+  const handleNext = () => {
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx((i) => i + 1);
+      setUserAnswer('');
+      setFeedback(null);
+    } else {
+      // 全部完成
+      setPhase('finished');
+      onEarnInk(40);
+    }
+  };
+
+  // 重置
+  const handleRestart = () => {
+    setPhase('preview');
+    setCurrentIdx(0);
+    setRecords([]);
+    setUserAnswer('');
+    setFeedback(null);
+  };
+
+  // 阶段 1: preview
+  if (phase === 'preview') {
+    const totalItems =
+      scopePreview.charCount + scopePreview.wordCount + scopePreview.sentenceCount;
+    return (
+      <div className="bg-white border border-[#E6E1D8] rounded-xl p-6 shadow-xs space-y-5">
+        <div className="flex items-center gap-2 pb-3 border-b border-[#F0ECE4]">
+          <Sparkles size={16} className="text-[#B83A2D]" />
+          <h3 className="text-base font-bold font-serif-sc text-[#24292E]">
+            本次复习
+          </h3>
+          <span className="text-xs text-[#8C8273]">· 系统自动出题</span>
+        </div>
+
+        {totalItems === 0 ? (
+          <div className="p-6 text-center text-xs text-[#57606A] bg-[#FAF8F5] border border-[#E6E1D8] rounded-lg">
+            当前范围没有需要复习的内容, 可以休息一下, 或者切换其他范围.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 rounded-lg bg-[#FAF6EE] border border-[#ECD9BF]">
+                <div className="text-2xl font-bold font-mono text-[#B83A2D]">
+                  {scopePreview.charCount}
+                </div>
+                <div className="text-[10px] text-[#57606A]">生字</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-[#EBF7EE] border border-[#C6E9CC]">
+                <div className="text-2xl font-bold font-mono text-[#1B4D3E]">
+                  {scopePreview.wordCount}
+                </div>
+                <div className="text-[10px] text-[#57606A]">词语</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-[#FAF8F5] border border-[#DDD7CD]">
+                <div className="text-2xl font-bold font-mono text-[#92400E]">
+                  {scopePreview.sentenceCount}
+                </div>
+                <div className="text-[10px] text-[#57606A]">句子</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-[#57606A] bg-[#FAF8F5] p-3 rounded-lg border border-[#EDE7DC]">
+              <span>预计约 {scopePreview.estimatedMinutes} 分钟</span>
+              <span>共 {questions.length} 题 · 混合题型</span>
+            </div>
+
+            <button
+              onClick={handleStart}
+              disabled={questions.length === 0}
+              className="w-full py-3 bg-[#B83A2D] text-white text-sm font-medium rounded-lg hover:bg-[#9E2F23] disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+            >
+              <Play size={16} />
+              <span>开始复习</span>
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // 阶段 2: in_progress
+  if (phase === 'in_progress' && currentQ) {
+    const isChoice = Array.isArray(currentQ.options) && currentQ.options.length > 0;
+    return (
+      <div className="bg-white border border-[#E6E1D8] rounded-xl p-6 shadow-xs space-y-5">
+        {/* 进度条 */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-[#57606A]">
+            <span>{questionTypeLabel(currentQ.type)}</span>
+            <span className="font-mono">
+              第 {currentIdx + 1} / {questions.length} 题
+            </span>
+          </div>
+          <div className="h-1.5 bg-[#F0ECE4] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#B83A2D] transition-all"
+              style={{
+                width: `${((currentIdx) / questions.length) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* 题目 */}
+        <div className="space-y-4">
+          <div className="text-center py-6">
+            {currentQ.type === 'audio_to_char' ? (
+              <button
+                onClick={() => currentQ.audioText && speakChinese(currentQ.audioText)}
+                className="w-20 h-20 mx-auto rounded-full bg-[#FAF6EE] text-[#B83A2D] hover:bg-[#F2ECE0] border-2 border-[#B83A2D]/30 flex items-center justify-center transition-transform hover:scale-105 shadow-inner"
+                title="点击播放发音"
+              >
+                <Volume2 size={36} />
+              </button>
+            ) : (
+              <div className="font-serif-sc font-bold text-[#24292E] text-4xl">
+                {currentQ.prompt}
+              </div>
+            )}
+            {currentQ.hint && (
+              <div className="text-xs text-[#8C8273] mt-3 italic">
+                提示: {currentQ.hint}
+              </div>
+            )}
+          </div>
+
+          {/* 答题区 */}
+          {isChoice ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {currentQ.options!.map((opt) => {
+                const selected = userAnswer === opt;
+                const isCorrectOpt = opt === currentQ.answer;
+                const showResult = feedback !== null;
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => feedback === null && setUserAnswer(opt)}
+                    disabled={showResult}
+                    className={`py-3 rounded-lg border text-2xl font-serif-sc font-bold transition-colors ${
+                      showResult && isCorrectOpt
+                        ? 'bg-[#EBF7EE] border-[#16A34A] text-[#16A34A]'
+                        : showResult && selected && !isCorrectOpt
+                        ? 'bg-[#FEF2F2] border-[#B83A2D] text-[#B83A2D]'
+                        : selected
+                        ? 'bg-[#FAF6EE] border-[#B83A2D] text-[#24292E]'
+                        : 'bg-[#FAF8F5] border-[#DDD7CD] text-[#57606A] hover:bg-[#F2ECE0]'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <input
+              type="text"
+              placeholder="请输入答案..."
+              value={userAnswer}
+              disabled={feedback !== null}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !feedback && userAnswer.trim()) {
+                  handleSubmit();
+                }
+              }}
+              className="w-full text-center text-lg font-serif-sc py-2.5 px-4 rounded-lg border border-[#DDD7CD] focus:outline-none focus:border-[#B83A2D] text-[#24292E] bg-white placeholder-[#A8A196]"
+            />
+          )}
+
+          {/* 反馈 */}
+          {feedback === null ? (
+            <button
+              onClick={handleSubmit}
+              disabled={!userAnswer.trim()}
+              className="w-full py-2.5 bg-[#B83A2D] text-white text-xs font-medium rounded-lg hover:bg-[#9E2F23] disabled:opacity-40 transition-colors"
+            >
+              提交答案
+            </button>
+          ) : (
+            <div className="space-y-3">
+              {feedback === 'correct' ? (
+                <div className="p-3 rounded-lg bg-[#EBF7EE] text-[#16A34A] text-xs flex items-center justify-center gap-1.5 font-medium">
+                  <CheckCircle2 size={16} />
+                  <span>回答正确!</span>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg bg-[#FEF2F2] text-[#B83A2D] text-xs space-y-1">
+                  <p className="font-semibold">回答需巩固!</p>
+                  <p>正确答案: {currentQ.answer}</p>
+                </div>
+              )}
+              <button
+                onClick={handleNext}
+                className="w-full py-2.5 bg-[#24292E] text-white text-xs font-medium rounded-lg hover:bg-[#333A42] transition-colors"
+              >
+                {currentIdx < questions.length - 1 ? '下一题 →' : '查看本次成绩'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 阶段 3: finished
+  if (phase === 'finished') {
+    const summary = summarizeReviewSession(records);
+    const correctRate =
+      summary.total > 0
+        ? Math.round((summary.correctCount / summary.total) * 100)
+        : 0;
+
+    return (
+      <div className="bg-white border border-[#E6E1D8] rounded-xl p-6 shadow-xs space-y-5">
+        <div className="text-center py-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-[#FAF6EE] text-[#B83A2D] flex items-center justify-center mb-3">
+            <Sparkles size={32} />
+          </div>
+          <h3 className="text-xl font-bold font-serif-sc text-[#24292E]">
+            复习完成!
+          </h3>
+          <p className="text-xs text-[#57606A] mt-1">
+            共 {summary.total} 题 · 正确率 {correctRate}%
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="text-center p-3 rounded-lg bg-[#EBF7EE] border border-[#C6E9CC]">
+            <div className="text-2xl font-bold font-mono text-[#16A34A]">
+              {summary.correctCount}
+            </div>
+            <div className="text-[10px] text-[#57606A]">正确</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-[#FEF2F2] border border-[#FCA5A5]">
+            <div className="text-2xl font-bold font-mono text-[#B83A2D]">
+              {summary.wrongCount}
+            </div>
+            <div className="text-[10px] text-[#57606A]">错误</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-[#FAF6EE] border border-[#ECD9BF]">
+            <div className="text-2xl font-bold font-mono text-[#92400E]">
+              {summary.wrongItems.length}
+            </div>
+            <div className="text-[10px] text-[#57606A]">需要再复习</div>
+          </div>
+        </div>
+
+        {/* 学习建议 */}
+        <div className="text-xs text-[#57606A] bg-[#FAF8F5] p-3 rounded-lg border border-[#EDE7DC]">
+          <strong>学习建议: </strong>{summary.suggestion}
+        </div>
+
+        {/* 需要再复习的题目列表 */}
+        {summary.wrongItems.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-[11px] font-bold text-[#B83A2D]">需要再复习</div>
+            <div className="flex flex-wrap gap-1.5">
+              {summary.wrongItems.slice(0, 12).map((w, i) => (
+                <span
+                  key={i}
+                  className="px-2 py-1 text-xs font-serif-sc font-bold bg-[#FAF8F5] border border-[#DDD7CD] rounded text-[#24292E]"
+                >
+                  {w.prompt}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleRestart}
+            className="flex-1 py-2.5 bg-[#B83A2D] text-white text-xs font-medium rounded-lg hover:bg-[#9E2F23] transition-colors flex items-center justify-center gap-1.5"
+          >
+            <RotateCw size={14} />
+            <span>再练一次</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// ------------------------------------------------------------
 // 工单 10: 教材复习概览卡片
 // ------------------------------------------------------------
 // 显示当前教材课程的复习统计: 课文名称 + 生字/词语/句子 已掌握/待复习 数量.
@@ -755,7 +1210,7 @@ function TextbookReviewOverview({
             </h3>
           </div>
           <p className="text-xs text-[#57606A] mt-1">
-            按本课实际教材内容统计 · 严格按 ID 过滤, 不混入原 curriculum 数据
+            按本课实际内容统计, 只包含本课的生字、词语与句子
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">

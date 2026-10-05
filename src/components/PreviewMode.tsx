@@ -3,7 +3,7 @@ import { CheckCircle2, Volume2, Sparkles, HelpCircle, ChevronDown, ChevronUp, Ar
 import confetti from 'canvas-confetti';
 import { GradeId, CharacterItem, WordItem, SentenceItem, MainTab } from '../types/chinese';
 import { PREVIEW_GUIDES } from '../data/curriculum';
-import { speakChinese } from '../utils/speech';
+import { speakChinese, speakChar } from '../utils/speech';
 
 interface PreviewModeProps {
   gradeId: GradeId;
@@ -142,9 +142,9 @@ export const PreviewMode: React.FC<PreviewModeProps> = ({
             {characters.map((c) => (
               <button
                 key={c.id}
-                onClick={() => speakChinese(`${c.char}，${c.pinyin}`)}
+                onClick={() => speakChar(c.char)}
                 className="group flex items-center gap-2 p-2 rounded-lg bg-[#FAF8F5] border border-[#DDD7CD] hover:border-[#B83A2D] hover:bg-white transition-all"
-                title="点击朗读汉字与读音"
+                title="点击朗读汉字"
               >
                 <div className="w-8 h-8 rounded border border-[#B83A2D]/30 mizige-bg flex items-center justify-center font-serif-sc text-lg font-bold text-[#24292E]">
                   {c.char}

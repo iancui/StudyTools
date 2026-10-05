@@ -23,7 +23,11 @@ import { useDetailedProgressSync } from './hooks/useDetailedProgressSync';
 import { useTextbookLessons, useTextbookLessonContent, useTextbookMultiLessonsContent } from './hooks/useTextbook';
 import { LessonSelector } from './components/LessonSelector';
 import { LessonNav } from './components/LessonNav';
+import { GradeSemesterSelector } from './components/GradeSemesterSelector';
+import { PhotoReview } from './components/PhotoReview';
 import type { ReviewScope } from './components/ReviewMode';
+import { midtermLessonIds, finalLessonIds } from './utils/reviewAlgorithm';
+import type { Semester } from './components/GradeSemesterSelector';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout, accessToken } = useAuth();
@@ -38,6 +42,8 @@ function AppContent() {
   // 工单 06: 教材课程选择 (三年级上册第 1~5 课)
   // null 表示未选择课程, 走原 curriculum 本地数据
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  // 工单 14: 学期选择 (首页可直接选年级 + 学期). 默认 "上册".
+  const [selectedSemester, setSelectedSemester] = useState<Semester>('上册');
 
   // 工单 13: 复习范围选择.
   // - current_lesson: 只复习当前正在学习的课程
@@ -69,8 +75,9 @@ function AppContent() {
   useDetailedProgressSync({ progress, setProgress });
 
   // 工单 06: 三年级时加载教材课程列表, 切换年级时清空课程选择
+  // 工单 14: 新增学期参数, 首页选年级+学期后自动加载对应课程列表.
   const { lessons: textbookLessons, loading: lessonsLoading, error: lessonsError } =
-    useTextbookLessons(progress.selectedGrade);
+    useTextbookLessons(progress.selectedGrade, selectedSemester);
   const { data: lessonContent, loading: contentLoading, error: contentError } =
     useTextbookLessonContent(selectedLessonId);
 
@@ -79,18 +86,15 @@ function AppContent() {
   // 会自动重新拉取, 选择的范围会真正影响复习内容 (不只是改标题).
   // - current_lesson: 不需要额外拉取, 复用单课 lessonContent
   // - selected:       用户多选的 lessonIds
-  // - midterm:        课程列表前半段
-  // - final:          课程列表全部
+  // - midterm:        课程列表前半段 (用工具函数, 未来可改为教材定义)
+  // - final:          课程列表全部 (用工具函数)
+  // - today:          不拉取新数据, 由 ReviewMode 用复习算法在已有数据内筛选
   const reviewLessonIds = useMemo<string[]>(() => {
     if (progress.selectedGrade !== 'g3' || textbookLessons.length === 0) return [];
-    const sorted = [...textbookLessons].sort((a, b) => a.lessonNo - b.lessonNo);
-    if (reviewScope === 'current_lesson') return [];
+    if (reviewScope === 'current_lesson' || reviewScope === 'today') return [];
     if (reviewScope === 'selected') return reviewSelectedLessonIds;
-    if (reviewScope === 'midterm') {
-      const half = Math.ceil(sorted.length / 2);
-      return sorted.slice(0, half).map((l) => l.id);
-    }
-    if (reviewScope === 'final') return sorted.map((l) => l.id);
+    if (reviewScope === 'midterm') return midtermLessonIds(textbookLessons);
+    if (reviewScope === 'final') return finalLessonIds(textbookLessons);
     return [];
   }, [progress.selectedGrade, textbookLessons, reviewScope, reviewSelectedLessonIds]);
 
@@ -130,10 +134,19 @@ function AppContent() {
   // Grade selection handler
   const handleSelectGrade = (gradeId: GradeId) => {
     stopSpeech();
+    // 工单 14: 切换年级/学期时清空已选课程, 避免遗留选中旧课程
+    setSelectedLessonId(null);
     setProgress(prev => ({
       ...prev,
       selectedGrade: gradeId
     }));
+  };
+
+  // 工单 14: 切换学期时也清空已选课程
+  const handleSelectSemester = (s: Semester) => {
+    stopSpeech();
+    setSelectedLessonId(null);
+    setSelectedSemester(s);
   };
 
   // Check in handler
@@ -378,30 +391,22 @@ function AppContent() {
               <p className="text-sm text-[#57606A]">今天学什么？</p>
             </div>
 
-            {/* 当前教材 / 课文信息 */}
-            <div className="bg-white border border-[#E6E1D8] rounded-xl p-4 text-center text-sm">
-              {progress.selectedGrade === 'g3' && selectedLessonId && lessonContent.lesson ? (
-                <>
-                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
-                  <div className="font-serif-sc font-bold text-[#24292E]">
-                    {currentGradeInfo.name} · {lessonContent.lesson.title}
-                  </div>
-                </>
-              ) : progress.selectedGrade === 'g3' && textbookLessons.length > 0 ? (
-                <>
-                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
-                  <div className="font-serif-sc font-bold text-[#24292E]">
-                    {currentGradeInfo.name}
-                  </div>
-                  <div className="text-xs text-[#B83A2D] mt-1">请选择课文</div>
-                </>
-              ) : (
-                <>
-                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
-                  <div className="text-[#B83A2D]">请选择教材</div>
-                </>
-              )}
-            </div>
+            {/* 工单 14: 首页直接选年级 + 学期 + 课程. 不只针对三年级写死 UI. */}
+            <GradeSemesterSelector
+              gradeId={progress.selectedGrade}
+              semester={selectedSemester}
+              lessons={textbookLessons}
+              lessonsLoading={lessonsLoading}
+              lessonsError={lessonsError}
+              selectedLessonId={selectedLessonId}
+              onSelectGrade={handleSelectGrade}
+              onSelectSemester={handleSelectSemester}
+              onSelectLesson={setSelectedLessonId}
+              onEnterLearn={() => {
+                setActiveTab('character');
+                setLearningMode('learn');
+              }}
+            />
 
             {/* 3 个入口按钮 */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -431,11 +436,16 @@ function AppContent() {
               </button>
             </div>
 
-            {/* 选中教材但未选课文时, 显示课程选择器入口 */}
-            {progress.selectedGrade === 'g3' && !selectedLessonId && (
-              <div className="bg-[#FAF8F4] border border-[#E6E1D8] rounded-xl p-4 text-center text-xs text-[#57606A]">
-                点击下方"学习"或"预习"后可在顶部选择具体课文
-              </div>
+            {/* 工单 14: 拍照复习生字入口 (优先放在生字学习/复习相关位置) */}
+            {usingTextbook && displayCharacters.length > 0 && (
+              <PhotoReview
+                charactersList={displayCharacters}
+                masteredIds={progress.masteredCharacterIds}
+                onComplete={() => {
+                  setActiveTab('character');
+                  setLearningMode('learn');
+                }}
+              />
             )}
           </section>
         )}
@@ -596,12 +606,21 @@ function AppContent() {
             )}
 
             {activeTab === 'character' && (
-              <CharacterModule
-                gradeId={progress.selectedGrade}
-                charactersList={displayCharacters}
-                masteredIds={progress.masteredCharacterIds}
-                onToggleMaster={handleToggleCharMaster}
-              />
+              <>
+                <CharacterModule
+                  gradeId={progress.selectedGrade}
+                  charactersList={displayCharacters}
+                  masteredIds={progress.masteredCharacterIds}
+                  onToggleMaster={handleToggleCharMaster}
+                />
+                {/* 工单 14: 生字学习页底部提供拍照复习入口 */}
+                {usingTextbook && displayCharacters.length > 0 && (
+                  <PhotoReview
+                    charactersList={displayCharacters}
+                    masteredIds={progress.masteredCharacterIds}
+                  />
+                )}
+              </>
             )}
 
             {activeTab === 'word' && (

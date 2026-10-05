@@ -70,10 +70,12 @@ import {
   SentenceItem,
   WordItem,
 } from "../types/chinese";
+import { GRADES_LIST } from "../data/curriculum";
 
-// 数据库实际值 (与 schema 一致, 不要改格式)
-const TEXTBOOK_GRADE = "三年级";
-const TEXTBOOK_TERM = "上册";
+/** 把 GradeId 转成数据库里 grade 字段使用的中文名 (例如 g3 → 三年级). */
+export function gradeIdToName(gradeId: GradeId): string | null {
+  return GRADES_LIST.find((g) => g.id === gradeId)?.name ?? null;
+}
 
 // ------------------------------------------------------------
 // 1. 课程列表 hook
@@ -86,20 +88,29 @@ export interface UseTextbookLessonsResult {
 }
 
 /**
- * 加载三年级上册的课程列表 (5 课).
+ * 加载某个年级 + 学期的课程列表.
  *
- * 仅在 gradeId === 'g3' 时启用, 其他年级返回空数组 (走原 curriculum).
+ * 工单 14: 第一版只针对三年级上册有真实数据, 其他组合返回空数组.
+ * 接口本身支持任意 grade/term, 后端补数据后即可直接生效, 无需改前端.
+ *
+ * @param gradeId 年级 ID (例如 g3)
+ * @param semester 学期 ("上册" / "下册"), 默认 "上册"
  */
 export function useTextbookLessons(
-  gradeId: GradeId
+  gradeId: GradeId,
+  semester: "上册" | "下册" = "上册"
 ): UseTextbookLessonsResult {
   const [lessons, setLessons] = useState<LessonDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 把 GradeId 转成数据库里的中文名, 例如 g3 → 三年级
+  const gradeName = gradeIdToName(gradeId);
+
   useEffect(() => {
-    // 只在三年级时拉取教材课程; 其他年级返回空, 由 App 走原 curriculum
-    if (gradeId !== "g3") {
+    // 后端目前只有"三年级 + 上册"有真实数据, 其他组合直接返回空数组,
+    // 由 UI 显示"暂无课程", 不会触发不必要的网络请求.
+    if (!gradeName || gradeId !== "g3" || semester !== "上册") {
       setLessons([]);
       setError(null);
       return;
@@ -109,7 +120,7 @@ export function useTextbookLessons(
     setLoading(true);
     setError(null);
 
-    listLessons({ grade: TEXTBOOK_GRADE, term: TEXTBOOK_TERM })
+    listLessons({ grade: gradeName, term: semester })
       .then((data) => {
         if (cancelled) return;
         setLessons(data);
@@ -129,7 +140,7 @@ export function useTextbookLessons(
     return () => {
       cancelled = true;
     };
-  }, [gradeId]);
+  }, [gradeId, semester, gradeName]);
 
   return { lessons, loading, error };
 }

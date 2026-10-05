@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Volume2, CheckCircle2, Circle, PenTool, Sparkles, X, ChevronRight, BookOpen, Shuffle, AlertTriangle, ListFilter, CheckSquare } from 'lucide-react';
 import { CharacterItem, GradeId } from '../types/chinese';
-import { speakChinese } from '../utils/speech';
+import { speakChinese, speakChar, speakPinyin } from '../utils/speech';
 import { HandwritingCanvas } from './HandwritingCanvas';
 
 interface CharacterModuleProps {
@@ -274,12 +274,21 @@ export const CharacterModule: React.FC<CharacterModuleProps> = ({
                     <span className="text-2xl font-bold font-serif-sc text-[#B83A2D] tracking-wide">
                       {activeChar.pinyin}
                     </span>
+                    {/* 工单 14: 朗读生字只朗读目标汉字本身, 不带拼音/释义/按钮文本.
+                        朗读拼音单独走 speakPinyin, 与汉字朗读分开. */}
                     <button
-                      onClick={() => speakChinese(activeChar.char)}
+                      onClick={() => speakChar(activeChar.char)}
                       className="p-1.5 rounded-full bg-[#FAF6EE] text-[#B83A2D] hover:bg-[#F2ECE0] transition-colors"
-                      title="朗读发音"
+                      title="朗读生字"
                     >
                       <Volume2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => speakPinyin(activeChar.pinyin)}
+                      className="p-1.5 rounded-full bg-[#FAF6EE] text-[#1B4D3E] hover:bg-[#EBF7EE] transition-colors"
+                      title="朗读拼音"
+                    >
+                      <Volume2 size={14} />
                     </button>
                   </div>
 
