@@ -1,23 +1,72 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Clock, CheckCircle2, XCircle, AlertCircle, ArrowRight, RotateCcw, BookOpen } from 'lucide-react';
+import { Award, Clock, CheckCircle2, XCircle, RotateCcw, BookOpen, ChevronLeft } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GradeId, ExamQuestion } from '../types/chinese';
+import { GradeId, ExamQuestion, CharacterItem, WordItem, SentenceItem } from '../types/chinese';
 import { ExamRecord } from '../types/progress';
+import { generateExamQuestions } from '../utils/examGenerator';
+import {
+  saveExamRecord,
+  SavedExamRecordDTO,
+  ExamAnswerPayload,
+} from '../api/exam';
 
 interface ExamModeProps {
   gradeId: GradeId;
+  // 原 curriculum 模式直接传入题目数组
   examsList?: ExamQuestion[];
   onSaveExamRecord: (record: ExamRecord) => void;
   onAddWrongQuestions: (questionIds: string[]) => void;
+
+  // 工单 11: 教材模式额外参数
+  // usingTextbook=true 时使用教材数据生成题目, examsList 被忽略
+  usingTextbook?: boolean;
+  lessonTitle?: string;
+  textbookCharacters?: CharacterItem[];
+  textbookWords?: WordItem[];
+  textbookSentences?: SentenceItem[];
+  // 干扰项来源池 (来自 curriculum 同年级数据, 仅取字符串不带 ID)
+  distractorPinyinPool?: string[];
+  distractorWordPool?: string[];
+  distractorSentencePool?: string[];
+  // 保存到 exam_records 表的 access token + 成功回调
+  accessToken?: string | null;
+  onExamRecordSaved?: (saved: SavedExamRecordDTO) => void;
+  // 返回复习页回调
+  onReturnToReview?: () => void;
 }
 
 export const ExamMode: React.FC<ExamModeProps> = ({
   gradeId,
   examsList = [],
   onSaveExamRecord,
-  onAddWrongQuestions
+  onAddWrongQuestions,
+  usingTextbook = false,
+  lessonTitle,
+  textbookCharacters = [],
+  textbookWords = [],
+  textbookSentences = [],
+  distractorPinyinPool = [],
+  distractorWordPool = [],
+  distractorSentencePool = [],
+  accessToken = null,
+  onExamRecordSaved,
+  onReturnToReview,
 }) => {
-  const questions: ExamQuestion[] = examsList;
+  // 教材模式: 用 useMemo 生成首份题目; "再测一次" 时 setTextbookQuestions 重新生成
+  const [textbookQuestions, setTextbookQuestions] = useState<ExamQuestion[]>(() => {
+    if (!usingTextbook) return [];
+    return generateExamQuestions({
+      characters: textbookCharacters,
+      words: textbookWords,
+      sentences: textbookSentences,
+      lessonTitle: lessonTitle || '',
+      distractorPinyinPool,
+      distractorWordPool,
+      distractorSentencePool,
+    });
+  });
+
+  const questions: ExamQuestion[] = usingTextbook ? textbookQuestions : examsList;
 
   const [hasStarted, setHasStarted] = useState(false);
   const [userAnswers, setUserAnswers] = useState<Record<string, number | string>>({});
@@ -28,9 +77,15 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     accuracy: number;
     wrongIds: string[];
   } | null>(null);
+  // 工单 11: 教材模式考试起始时间, 用于提交时计算 durationSeconds
+  const [startedAt, setStartedAt] = useState<Date | null>(null);
+  // 工单 11: 服务器保存状态 (loading/done/error)
+  const [savingToServer, setSavingToServer] = useState(false);
+  const [saveServerError, setSaveServerError] = useState<string | null>(null);
 
-  // Timer countdown
+  // Timer countdown (工单 11: 教材模式不强制倒计时, 跳过)
   useEffect(() => {
+    if (usingTextbook) return;
     if (!hasStarted || isSubmitted) return;
 
     const timer = setInterval(() => {
@@ -45,7 +100,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [hasStarted, isSubmitted]);
+  }, [hasStarted, isSubmitted, usingTextbook]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -87,6 +142,11 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     setExamResult(result);
     setIsSubmitted(true);
 
+    // 工单 11: 教材模式 timeSpent 由 startedAt 计算, curriculum 模式保持原逻辑
+    const timeSpentSeconds = usingTextbook && startedAt
+      ? Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 1000))
+      : 600 - timeLeft;
+
     const record: ExamRecord = {
       id: `exam-${Date.now()}`,
       gradeId,
@@ -94,13 +154,52 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       totalScore: 100,
       accuracy,
       date: new Date().toLocaleDateString('zh-CN'),
-      timeSpentSeconds: 600 - timeLeft,
+      timeSpentSeconds,
       wrongQuestionIds: wrongIds
     };
 
     onSaveExamRecord(record);
     if (wrongIds.length > 0) {
       onAddWrongQuestions(wrongIds);
+    }
+
+    // 工单 11: 教材模式同步保存到 exam_records 表 (best-effort, 不阻塞 UI)
+    if (usingTextbook && accessToken) {
+      const completedAt = new Date();
+      const answers: ExamAnswerPayload[] = questions.map((q) => {
+        const uAns = userAnswers[q.id];
+        const isCorrect = uAns !== undefined && uAns === q.correctAnswer;
+        return {
+          questionId: q.id,
+          userAnswer: typeof uAns === 'number' || typeof uAns === 'string' ? uAns : null,
+          isCorrect,
+        };
+      });
+      setSavingToServer(true);
+      setSaveServerError(null);
+      saveExamRecord(accessToken, {
+        examId: record.id,
+        examName: lessonTitle ? `《${lessonTitle}》教材测验` : '教材测验',
+        grade: String(gradeId),
+        totalQuestions,
+        correctQuestions: correctCount,
+        wrongQuestions: totalQuestions - correctCount,
+        score,
+        durationSeconds: timeSpentSeconds,
+        answers,
+        startedAt: startedAt ? startedAt.toISOString() : completedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+      })
+        .then((saved) => {
+          setSavingToServer(false);
+          onExamRecordSaved?.(saved);
+        })
+        .catch((err) => {
+          setSavingToServer(false);
+          setSaveServerError(
+            err instanceof Error ? err.message : '保存考试记录失败'
+          );
+        });
     }
 
     if (score >= 80) {
@@ -116,9 +215,27 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const resetExam = () => {
     setUserAnswers({});
     setIsSubmitted(false);
-    setTimeLeft(600);
     setExamResult(null);
     setHasStarted(true);
+    setSaveServerError(null);
+    setSavingToServer(false);
+    if (usingTextbook) {
+      // 工单 11: "再测一次" 重新生成题目 + 重新随机顺序
+      setTextbookQuestions(
+        generateExamQuestions({
+          characters: textbookCharacters,
+          words: textbookWords,
+          sentences: textbookSentences,
+          lessonTitle: lessonTitle || '',
+          distractorPinyinPool,
+          distractorWordPool,
+          distractorSentencePool,
+        })
+      );
+      setStartedAt(new Date());
+    } else {
+      setTimeLeft(600);
+    }
   };
 
   if (!hasStarted) {
@@ -130,10 +247,14 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
         <div className="space-y-2">
           <h2 className="text-2xl font-bold font-serif-sc text-[#24292E]">
-            学段标准学业水平测验
+            {usingTextbook && lessonTitle
+              ? `《${lessonTitle}》教材测验`
+              : '学段标准学业水平测验'}
           </h2>
           <p className="text-xs text-[#57606A] leading-relaxed">
-            本试卷涵盖当前年级的生字拼音、精品词汇、句式修辞及阅读鉴赏，限时 10 分钟。提交后即时智能判分并自动归入错题本。
+            {usingTextbook
+              ? '本试卷基于当前课文的生字、词语和重点句子自动生成，包含生字拼音题、词语识别题和重点句子题，提交后即时判分并归入错题本。'
+              : '本试卷涵盖当前年级的生字拼音、精品词汇、句式修辞及阅读鉴赏，限时 10 分钟。提交后即时智能判分并自动归入错题本。'}
           </p>
         </div>
 
@@ -144,7 +265,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
           </div>
           <div>
             <span className="text-[#8C8273] block">时长</span>
-            <strong className="text-sm font-mono text-[#24292E]">10 分钟</strong>
+            <strong className="text-sm font-mono text-[#24292E]">{usingTextbook ? '不限时' : '10 分钟'}</strong>
           </div>
           <div>
             <span className="text-[#8C8273] block">满分奖励</span>
@@ -153,7 +274,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         </div>
 
         <button
-          onClick={() => setHasStarted(true)}
+          onClick={() => {
+            if (usingTextbook) setStartedAt(new Date());
+            setHasStarted(true);
+          }}
           className="px-8 py-3 bg-[#B83A2D] text-white text-xs font-medium rounded-lg hover:bg-[#9E2F23] transition-colors shadow-sm"
         >
           开始答卷
@@ -178,10 +302,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         <div className="flex items-center gap-4">
           {!isSubmitted ? (
             <>
-              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#B83A2D] bg-[#FAF6EE] px-2.5 py-1 rounded border border-[#B83A2D]/20">
-                <Clock size={14} />
-                <span>{formatTime(timeLeft)}</span>
-              </div>
+              {!usingTextbook && (
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#B83A2D] bg-[#FAF6EE] px-2.5 py-1 rounded border border-[#B83A2D]/20">
+                  <Clock size={14} />
+                  <span>{formatTime(timeLeft)}</span>
+                </div>
+              )}
               <button
                 onClick={handleSubmitExam}
                 className="px-4 py-1.5 bg-[#B83A2D] text-white text-xs font-medium rounded-md hover:bg-[#9E2F23] transition-colors shadow-xs"
@@ -190,13 +316,24 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               </button>
             </>
           ) : (
-            <button
-              onClick={resetExam}
-              className="flex items-center gap-1 px-3 py-1.5 bg-[#24292E] text-white text-xs font-medium rounded-md hover:bg-[#333A42] transition-colors"
-            >
-              <RotateCcw size={13} />
-              <span>重新测验</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {usingTextbook && onReturnToReview && (
+                <button
+                  onClick={onReturnToReview}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#E8E3DA] text-[#57606A] text-xs font-medium rounded-md hover:bg-[#FAF8F5] hover:text-[#24292E] transition-colors"
+                >
+                  <ChevronLeft size={13} />
+                  <span>返回复习</span>
+                </button>
+              )}
+              <button
+                onClick={resetExam}
+                className="flex items-center gap-1 px-3 py-1.5 bg-[#24292E] text-white text-xs font-medium rounded-md hover:bg-[#333A42] transition-colors"
+              >
+                <RotateCcw size={13} />
+                <span>再测一次</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -206,7 +343,11 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         <div className="bg-white border border-[#E8E3DA] rounded-xl p-6 sm:p-8 shadow-xs space-y-4 animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#F0ECE4]">
             <div>
-              <span className="text-xs text-[#8C8273]">本次综合考核评定</span>
+              <span className="text-xs text-[#8C8273]">
+                {usingTextbook && lessonTitle
+                  ? `《${lessonTitle}》教材测验成绩`
+                  : '本次综合考核评定'}
+              </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-4xl font-serif-sc font-bold text-[#B83A2D]">
                   {examResult.score}
@@ -216,15 +357,54 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
 
             <div className="text-xs text-[#57606A] sm:text-right">
+              <p>总题数：<strong className="text-[#24292E]">{questions.length}</strong> 题</p>
               <p>答对：<strong className="text-[#16A34A]">{questions.length - examResult.wrongIds.length}</strong> 题</p>
-              <p>需巩固错题：<strong className="text-[#DC2626]">{examResult.wrongIds.length}</strong> 题（已自动加入错题本）</p>
+              <p>答错：<strong className="text-[#DC2626]">{examResult.wrongIds.length}</strong> 题</p>
             </div>
           </div>
 
-          <div className="p-3 bg-[#FAF8F5] rounded-lg border border-[#EDE7DD] text-xs text-[#57606A] flex items-center justify-between">
-            <span>学分奖励已结算：已获得 +{Math.round(examResult.score * 0.6)} 墨滴</span>
-            <span className="text-[#8C8273]">滑动下方查看每道题的详尽答案解析</span>
-          </div>
+          {/* 工单 11: 服务器保存状态提示 (仅教材模式显示) */}
+          {usingTextbook && (
+            <div className="p-3 bg-[#FAF8F5] rounded-lg border border-[#EDE7DD] text-xs text-[#57606A] flex items-center justify-between">
+              {savingToServer ? (
+                <span>正在同步考试记录到云端...</span>
+              ) : saveServerError ? (
+                <span className="text-[#DC2626]">云端同步失败：{saveServerError}</span>
+              ) : (
+                <span>考试记录已同步到云端 exam_records 表</span>
+              )}
+              <span className="text-[#8C8273]">滑动下方查看每道题的详尽答案解析</span>
+            </div>
+          )}
+
+          {!usingTextbook && (
+            <div className="p-3 bg-[#FAF8F5] rounded-lg border border-[#EDE7DD] text-xs text-[#57606A] flex items-center justify-between">
+              <span>学分奖励已结算：已获得 +{Math.round(examResult.score * 0.6)} 墨滴</span>
+              <span className="text-[#8C8273]">滑动下方查看每道题的详尽答案解析</span>
+            </div>
+          )}
+
+          {/* 工单 11: 教材模式额外提供 "返回复习" / "再测一次" 按钮区 */}
+          {usingTextbook && (
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              {onReturnToReview && (
+                <button
+                  onClick={onReturnToReview}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-white border border-[#E8E3DA] text-[#24292E] text-xs font-medium rounded-md hover:bg-[#FAF8F5] transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                  <span>返回复习</span>
+                </button>
+              )}
+              <button
+                onClick={resetExam}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 bg-[#B83A2D] text-white text-xs font-medium rounded-md hover:bg-[#9E2F23] transition-colors shadow-xs"
+              >
+                <RotateCcw size={13} />
+                <span>再测一次</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

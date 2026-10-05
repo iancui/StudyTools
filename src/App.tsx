@@ -24,7 +24,7 @@ import { useTextbookLessons, useTextbookLessonContent } from './hooks/useTextboo
 import { LessonSelector } from './components/LessonSelector';
 
 function AppContent() {
-  const { isAuthenticated, isLoading, user, logout } = useAuth();
+  const { isAuthenticated, isLoading, user, logout, accessToken } = useAuth();
   const [progress, setProgress] = useState<UserProgress>(getInitialProgress);
   const [curriculum, setCurriculum] = useState<CurriculumConfig>(loadCurriculum);
   const [activeTab, setActiveTab] = useState<MainTab>('character');
@@ -334,6 +334,38 @@ function AppContent() {
             examsList={currentGradeExams}
             onSaveExamRecord={handleSaveExam}
             onAddWrongQuestions={handleAddWrongQuestions}
+            // 工单 11: 三年级选中教材课程时, 测验页用数据库教材内容自动
+            // 生成 3 类选择题, 其他年级或未选课时回退到原 curriculum exams.
+            usingTextbook={usingTextbook}
+            lessonTitle={usingTextbook ? lessonContent.lesson?.title : undefined}
+            textbookCharacters={usingTextbook ? displayCharacters : []}
+            textbookWords={usingTextbook ? displayWords : []}
+            textbookSentences={usingTextbook ? displaySentences : []}
+            // 干扰项来源池 (来自 curriculum g3, 仅取字符串不带 ID)
+            distractorPinyinPool={
+              usingTextbook
+                ? currentGradeCharacters
+                    .map((c) => c.pinyin)
+                    .filter((p): p is string => !!p)
+                : []
+            }
+            distractorWordPool={
+              usingTextbook
+                ? currentGradeWords.map((w) => w.word)
+                : []
+            }
+            distractorSentencePool={
+              usingTextbook
+                ? currentGradeSentences.map((s) => s.originalText)
+                : []
+            }
+            // 服务器保存到 exam_records 表
+            accessToken={usingTextbook ? accessToken : null}
+            onReturnToReview={
+              usingTextbook
+                ? () => setLearningMode('review')
+                : undefined
+            }
           />
         )}
 
