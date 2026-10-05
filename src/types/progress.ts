@@ -16,6 +16,31 @@ export interface DetailedStats {
   lastPracticedAt: string | number | null;
 }
 
+// ------------------------------------------------------------
+// 工单 18: 记忆状态 + 遗忘曲线核心模型
+// ------------------------------------------------------------
+// 纯前端 MemoryAnalysis 模型, 由 analyzeMemory(stats, now) 计算.
+// 不写数据库, 不调 API, 不修改 progress/localStorage.
+export type MemoryState =
+  | 'NEW'
+  | 'LEARNING'
+  | 'UNSTABLE'
+  | 'CONSOLIDATING'
+  | 'MASTERED'
+  | 'OVERDUE';
+
+export interface MemoryAnalysis {
+  practiceCount: number;
+  correctCount: number;
+  wrongCount: number;
+  accuracy: number;
+  daysSincePractice: number;
+  state: MemoryState;
+  memoryScore: number;
+  reviewPriorityScore: number;
+  shouldReview: boolean;
+}
+
 export interface ScholarRank {
   title: string;
   minInk: number;

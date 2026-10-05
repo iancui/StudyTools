@@ -41,12 +41,16 @@ import {
 } from "../types/chinese";
 import {
   DetailedStats,
+  MemoryAnalysis,
+  MemoryState,
   UserProgress,
 } from "../types/progress";
 
 // 工单 17: DetailedStats 类型现在统一从 src/types/progress.ts 导出
 // (避免类型层与工具层重复定义), 这里 re-export 供现有调用方继续使用.
 export type { DetailedStats } from "../types/progress";
+// 工单 18: 同样 re-export MemoryAnalysis / MemoryState 供调用方使用.
+export type { MemoryAnalysis, MemoryState } from "../types/progress";
 
 // ------------------------------------------------------------
 // 1. 类型
@@ -666,63 +670,88 @@ export function buildDataDrivenReviewQuestions(
   const max = input.maxQuestions ?? 10;
   const now = input.now ?? Date.now();
 
-  // 1. 给每个候选 item 计算优先级 (O(n))
+  // 1. 给每个候选 item 计算 MemoryAnalysis (O(n))
+  // 工单 18: 复用 analyzeMemory, 用 shouldReview 过滤, 用
+  // reviewPriorityScore 排序. 保留 level / daysSince 作为稳定排序
+  // 的次序依据, 不删除工单 17 的 wrongCount 优先 / 未练习优先
+  // 语义 (新模型中 NEW=90, LEARNING=80, UNSTABLE=75 + wrongBonus
+  // 已自然涵盖).
   type Entry = {
     kind: "char" | "word" | "sentence";
     item: { id: string };
     level: ReviewPriorityLevel;
     daysSince: number;
+    reviewPriorityScore: number;
+    shouldReview: boolean;
     itemId: string;
   };
 
   const entries: Entry[] = [];
   for (const c of input.characters) {
-    const r = reviewPriority(input.detailedCharStats[c.id], {
+    const stats = input.detailedCharStats[c.id];
+    const r = reviewPriority(stats, {
       now,
       isMastered: input.masteredCharIds.includes(c.id),
     });
+    const m = analyzeMemory(stats, now);
     entries.push({
       kind: "char",
       item: c,
       level: r.level,
       daysSince: r.daysSince,
+      reviewPriorityScore: m.reviewPriorityScore,
+      shouldReview: m.shouldReview,
       itemId: c.id,
     });
   }
   for (const w of input.words) {
-    const r = reviewPriority(input.detailedWordStats[w.id], {
+    const stats = input.detailedWordStats[w.id];
+    const r = reviewPriority(stats, {
       now,
       isMastered: input.masteredWordIds.includes(w.id),
     });
+    const m = analyzeMemory(stats, now);
     entries.push({
       kind: "word",
       item: w,
       level: r.level,
       daysSince: r.daysSince,
+      reviewPriorityScore: m.reviewPriorityScore,
+      shouldReview: m.shouldReview,
       itemId: w.id,
     });
   }
   for (const s of input.sentences) {
-    const r = reviewPriority(input.detailedSentenceStats[s.id], {
+    const stats = input.detailedSentenceStats[s.id];
+    const r = reviewPriority(stats, {
       now,
       isMastered: input.completedSentenceIds.includes(s.id),
     });
+    const m = analyzeMemory(stats, now);
     entries.push({
       kind: "sentence",
       item: s,
       level: r.level,
       daysSince: r.daysSince,
+      reviewPriorityScore: m.reviewPriorityScore,
+      shouldReview: m.shouldReview,
       itemId: s.id,
     });
   }
 
-  // 2. 过滤掉 level === 0 (今天不需要复习)
-  const candidates = entries.filter((e) => e.level > 0);
+  // 2. 过滤掉今天不需要复习的 (shouldReview === false)
+  //    工单 18: 改用 shouldReviewByMemory 判定, 与 MemoryAnalysis 一致.
+  const candidates = entries.filter((e) => e.shouldReview);
 
-  // 3. 稳定排序: priority desc -> daysSince desc -> itemId asc
+  // 3. 稳定排序:
+  //    主: reviewPriorityScore desc (工单 18)
+  //    次: level desc (工单 17 wrongCount/未练习优先的稳定延续)
+  //    再: daysSince desc, itemId asc
   candidates.sort((a, b) => {
+    if (a.reviewPriorityScore !== b.reviewPriorityScore) {
+      return b.reviewPriorityScore - a.reviewPriorityScore;
+    }
     if (a.level !== b.level) return b.level - a.level;
-    // 都是有限数: 大的在前; 任一为 +Infinity 都会排到前面
     const aDays = a.daysSince;
     const bDays = b.daysSince;
     if (aDays !== bDays) return bDays > aDays ? 1 : -1;
@@ -772,7 +801,7 @@ export function buildDataDrivenReviewQuestions(
   return questions;
 }
 
-/** 工单 17: 数据驱动的复习范围预览. */
+/** 工单 17/18: 数据驱动的复习范围预览. */
 export function previewDataDrivenScope(opts: {
   characters: CharacterItem[];
   words: WordItem[];
@@ -789,33 +818,20 @@ export function previewDataDrivenScope(opts: {
   let charCount = 0;
   let wordCount = 0;
   let sentenceCount = 0;
+  // 工单 18: 与 buildDataDrivenReviewQuestions 保持一致, 用
+  // shouldReviewByMemory 判定是否进入今日复习池.
   for (const c of opts.characters) {
-    if (
-      reviewPriority(opts.detailedCharStats[c.id], {
-        now,
-        isMastered: opts.masteredCharIds.includes(c.id),
-      }).level > 0
-    ) {
+    if (shouldReviewByMemory(opts.detailedCharStats[c.id], now)) {
       charCount++;
     }
   }
   for (const w of opts.words) {
-    if (
-      reviewPriority(opts.detailedWordStats[w.id], {
-        now,
-        isMastered: opts.masteredWordIds.includes(w.id),
-      }).level > 0
-    ) {
+    if (shouldReviewByMemory(opts.detailedWordStats[w.id], now)) {
       wordCount++;
     }
   }
   for (const s of opts.sentences) {
-    if (
-      reviewPriority(opts.detailedSentenceStats[s.id], {
-        now,
-        isMastered: opts.completedSentenceIds.includes(s.id),
-      }).level > 0
-    ) {
+    if (shouldReviewByMemory(opts.detailedSentenceStats[s.id], now)) {
       sentenceCount++;
     }
   }
@@ -825,5 +841,263 @@ export function previewDataDrivenScope(opts: {
     wordCount,
     sentenceCount,
     estimatedMinutes: Math.max(1, Math.round((total * 30) / 60)),
+  };
+}
+
+// ============================================================
+// 工单 18: 记忆状态 + 遗忘曲线核心模型 (MemoryAnalysis)
+// ============================================================
+//
+// 设计目标:
+//   - 在工单 17 数据驱动复习基础上, 增加可解释的记忆状态模型.
+//   - 算法由项目负责人设计, 这里严格按规则实现, 不重新设计.
+//   - 纯函数: 不写数据库, 不调 API, 不修改 progress/localStorage.
+//   - 所有函数优先使用传入 now, 保证测试稳定.
+//
+// 状态机:
+//   NEW          practiceCount === 0
+//   LEARNING     accuracy < 0.5
+//   UNSTABLE     accuracy < 0.8
+//   OVERDUE      accuracy >= 0.8 && daysSincePractice >= 14  (须先于 MASTERED)
+//   MASTERED     accuracy === 1 && practiceCount >= 5 && daysSincePractice <= 3
+//   CONSOLIDATING 其他 accuracy >= 0.8
+// ------------------------------------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 工单 18: 计算正确率.
+ * practiceCount <= 0 时返回 0. 结果 clamp 到 [0, 1].
+ */
+export function calculateAccuracy(stats: DetailedStats | undefined): number {
+  if (!stats) return 0;
+  const practiceCount = Math.max(0, stats.practiceCount);
+  const correctCount = Math.max(0, stats.correctCount);
+  if (practiceCount <= 0) return 0;
+  const acc = correctCount / practiceCount;
+  if (acc < 0) return 0;
+  if (acc > 1) return 1;
+  return acc;
+}
+
+/**
+ * 工单 18: 计算距离上一次练习的完整天数.
+ * lastPracticedAt 缺失或非法 → Infinity.
+ * 优先使用传入 now, 不隐式调用 Date.now().
+ */
+export function calculateDaysSincePractice(
+  lastPracticedAt: string | number | null | undefined,
+  now: number
+): number {
+  if (lastPracticedAt == null || lastPracticedAt === "") {
+    return Number.POSITIVE_INFINITY;
+  }
+  const t =
+    typeof lastPracticedAt === "number"
+      ? lastPracticedAt
+      : Date.parse(lastPracticedAt);
+  if (Number.isNaN(t)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const diff = now - t;
+  if (diff <= 0) return 0;
+  return Math.floor(diff / DAY_MS);
+}
+
+/**
+ * 工单 18: 计算 MemoryState.
+ * 严格按规则顺序判断, OVERDUE 必须在 MASTERED 前.
+ */
+export function calculateMemoryState(
+  stats: DetailedStats | undefined,
+  now: number
+): MemoryState {
+  if (!stats) {
+    // 缺数据视为从未练习
+    return "NEW";
+  }
+  const practiceCount = Math.max(0, stats.practiceCount);
+  if (practiceCount === 0) {
+    return "NEW";
+  }
+
+  const accuracy = calculateAccuracy(stats);
+  if (accuracy < 0.5) {
+    return "LEARNING";
+  }
+  if (accuracy < 0.8) {
+    return "UNSTABLE";
+  }
+
+  const days = calculateDaysSincePractice(stats.lastPracticedAt, now);
+
+  // OVERDUE 必须在 MASTERED 之前判断
+  if (days >= 14) {
+    return "OVERDUE";
+  }
+
+  if (
+    accuracy === 1 &&
+    practiceCount >= 5 &&
+    days <= 3
+  ) {
+    return "MASTERED";
+  }
+
+  return "CONSOLIDATING";
+}
+
+/**
+ * 工单 18: 计算 memoryScore (0~100, 越高表示记忆越牢固).
+ *
+ *   accuracyScore = accuracy * 60
+ *   recencyScore:
+ *     0~1 天 = 40
+ *     2~3 天 = 30
+ *     4~7 天 = 20
+ *     8~14 天 = 10
+ *     15~30 天 = 5
+ *     >30 天 = 0
+ *     lastPracticedAt 缺失 = 0
+ *   wrongPenalty = min(wrongCount * 5, 25)
+ *   memoryScore = accuracyScore + recencyScore - wrongPenalty
+ *   最终 clamp [0, 100]
+ */
+export function calculateMemoryScore(
+  stats: DetailedStats | undefined,
+  now: number
+): number {
+  if (!stats) {
+    return 0;
+  }
+  const accuracy = calculateAccuracy(stats);
+  const accuracyScore = accuracy * 60;
+
+  let recencyScore = 0;
+  if (stats.lastPracticedAt != null && stats.lastPracticedAt !== "") {
+    const days = calculateDaysSincePractice(stats.lastPracticedAt, now);
+    if (Number.isFinite(days)) {
+      if (days <= 1) recencyScore = 40;
+      else if (days <= 3) recencyScore = 30;
+      else if (days <= 7) recencyScore = 20;
+      else if (days <= 14) recencyScore = 10;
+      else if (days <= 30) recencyScore = 5;
+      else recencyScore = 0;
+    }
+  }
+  const wrongPenalty = Math.min(Math.max(0, stats.wrongCount) * 5, 25);
+  const score = accuracyScore + recencyScore - wrongPenalty;
+  if (score < 0) return 0;
+  if (score > 100) return 100;
+  return score;
+}
+
+/**
+ * 工单 18: 计算 reviewPriorityScore (0~100, 越高越优先复习).
+ *
+ *   statePriority:
+ *     NEW = 90, OVERDUE = 85, LEARNING = 80, UNSTABLE = 75,
+ *     CONSOLIDATING = 40, MASTERED = 10
+ *   wrongBonus = min(wrongCount * 5, 20)
+ *   forgettingBonus:
+ *     days >= 30 → 20
+ *     days >= 14 → 15
+ *     days >= 7 → 10
+ *     days >= 3 → 5
+ *     否则 0
+ *   reviewPriorityScore = statePriority + wrongBonus + forgettingBonus
+ *   最终 clamp [0, 100]
+ */
+export function calculateReviewPriority(
+  stats: DetailedStats | undefined,
+  now: number
+): number {
+  const state = calculateMemoryState(stats, now);
+  const statePriority: Record<MemoryState, number> = {
+    NEW: 90,
+    OVERDUE: 85,
+    LEARNING: 80,
+    UNSTABLE: 75,
+    CONSOLIDATING: 40,
+    MASTERED: 10,
+  };
+  const wrongBonus = stats
+    ? Math.min(Math.max(0, stats.wrongCount) * 5, 20)
+    : 0;
+  const days = stats
+    ? calculateDaysSincePractice(stats.lastPracticedAt, now)
+    : Number.POSITIVE_INFINITY;
+  let forgettingBonus = 0;
+  if (Number.isFinite(days)) {
+    if (days >= 30) forgettingBonus = 20;
+    else if (days >= 14) forgettingBonus = 15;
+    else if (days >= 7) forgettingBonus = 10;
+    else if (days >= 3) forgettingBonus = 5;
+  }
+  const score = statePriority[state] + wrongBonus + forgettingBonus;
+  if (score < 0) return 0;
+  if (score > 100) return 100;
+  return score;
+}
+
+/**
+ * 工单 18: 判断是否应当进入今日复习.
+ *
+ *   NEW / LEARNING / UNSTABLE / OVERDUE → true
+ *   CONSOLIDATING: daysSincePractice >= 7 ? true : false
+ *   MASTERED:     daysSincePractice >= 14 ? true : false
+ */
+export function shouldReviewByMemory(
+  stats: DetailedStats | undefined,
+  now: number
+): boolean {
+  const state = calculateMemoryState(stats, now);
+  if (state === "NEW" || state === "LEARNING" || state === "UNSTABLE" || state === "OVERDUE") {
+    return true;
+  }
+  if (state === "CONSOLIDATING") {
+    const days = stats
+      ? calculateDaysSincePractice(stats.lastPracticedAt, now)
+      : Number.POSITIVE_INFINITY;
+    return days >= 7;
+  }
+  // MASTERED
+  const days = stats
+    ? calculateDaysSincePractice(stats.lastPracticedAt, now)
+    : Number.POSITIVE_INFINITY;
+  return days >= 14;
+}
+
+/**
+ * 工单 18: 完整 MemoryAnalysis.
+ * 汇总 practice/correct/wrong/accuracy/days/state/memoryScore/
+ * reviewPriorityScore/shouldReview. 纯函数, 无副作用.
+ */
+export function analyzeMemory(
+  stats: DetailedStats | undefined,
+  now: number
+): MemoryAnalysis {
+  const practiceCount = stats ? Math.max(0, stats.practiceCount) : 0;
+  const correctCount = stats ? Math.max(0, stats.correctCount) : 0;
+  const wrongCount = stats ? Math.max(0, stats.wrongCount) : 0;
+  const accuracy = calculateAccuracy(stats);
+  const daysSincePractice = calculateDaysSincePractice(
+    stats?.lastPracticedAt,
+    now
+  );
+  const state = calculateMemoryState(stats, now);
+  const memoryScore = calculateMemoryScore(stats, now);
+  const reviewPriorityScore = calculateReviewPriority(stats, now);
+  const shouldReview = shouldReviewByMemory(stats, now);
+  return {
+    practiceCount,
+    correctCount,
+    wrongCount,
+    accuracy,
+    daysSincePractice,
+    state,
+    memoryScore,
+    reviewPriorityScore,
+    shouldReview,
   };
 }
