@@ -108,5 +108,6 @@ export interface CurriculumConfig {
   exams: Record<GradeId, ExamQuestion[]>;
 }
 
-export type LearningMode = 'learn' | 'preview' | 'review' | 'exam';
+// 工单 12: 新增 'home' 模式作为登录后默认入口 (学习首页)
+export type LearningMode = 'home' | 'learn' | 'preview' | 'review' | 'exam';
 export type MainTab = 'character' | 'word' | 'sentence' | 'essay' | 'records' | 'settings';

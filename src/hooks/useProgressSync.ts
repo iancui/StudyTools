@@ -120,7 +120,8 @@ export function useProgressSync({
   progress,
   setProgress,
 }: UseProgressSyncArgs): void {
-  const { isAuthenticated } = useAuth();
+  // 工单 12: 取 user.id 用于按用户隔离 localStorage 写回.
+  const { isAuthenticated, user } = useAuth();
   const authReq = useAuthenticatedRequest();
 
   // 是否已完成本次会话的初始同步 (登录后 GET + 合并/上传).
@@ -177,7 +178,8 @@ export function useProgressSync({
                 server.lastCheckinDate
               ),
             };
-            saveProgress(merged);
+            // 工单 12: 写回该用户专属 localStorage key
+            saveProgress(merged, user?.id);
             return merged;
           });
         } else {

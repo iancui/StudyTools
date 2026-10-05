@@ -25,13 +25,29 @@ import { LessonSelector } from './components/LessonSelector';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout, accessToken } = useAuth();
-  const [progress, setProgress] = useState<UserProgress>(getInitialProgress);
+  // 工单 12: 学习进度按用户隔离. useState 初始化用匿名函数包装
+  // getInitialProgress (此时还没有 user, 走全局 key); 下面 useEffect
+  // 会在 user.id 变化时重新读取该用户专属的 localStorage.
+  const [progress, setProgress] = useState<UserProgress>(() => getInitialProgress());
   const [curriculum, setCurriculum] = useState<CurriculumConfig>(loadCurriculum);
   const [activeTab, setActiveTab] = useState<MainTab>('character');
-  const [learningMode, setLearningMode] = useState<LearningMode>('learn');
+  // 工单 12: 登录后默认进入"学习首页" (home), 而不是直接进 learn.
+  const [learningMode, setLearningMode] = useState<LearningMode>('home');
   // 工单 06: 教材课程选择 (三年级上册第 1~5 课)
   // null 表示未选择课程, 走原 curriculum 本地数据
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+
+  // 工单 12: 用户身份变化 (登录/登出/切换账号) 时, 重新加载该用户
+  // 专属的 localStorage 进度. 这样 A 登出后 B 登录不会看到 A 的数据,
+  // 新注册用户也不会继承旧账号的本地缓存.
+  useEffect(() => {
+    setProgress(getInitialProgress(user?.id));
+    // 切换账号后回到学习首页, 避免停留在上一个账号的最后一个模式
+    if (isAuthenticated) {
+      setLearningMode('home');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isAuthenticated]);
 
   // 学习进度云同步: 登录后从服务器恢复摘要, 学习时防抖 PUT 上传.
   // 内部全部 try/catch, 云端失败不影响本地学习.
@@ -59,13 +75,13 @@ function AppContent() {
     if (updatedBadges.length !== progress.unlockedBadgeIds.length) {
       setProgress(prev => {
         const next = { ...prev, unlockedBadgeIds: updatedBadges };
-        saveProgress(next);
+        saveProgress(next, user?.id);
         return next;
       });
     } else {
-      saveProgress(progress);
+      saveProgress(progress, user?.id);
     }
-  }, [progress]);
+  }, [progress, user?.id]);
 
   // Clean speech when unmounting or switching tabs
   useEffect(() => {
@@ -282,6 +298,80 @@ function AppContent() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 md:py-8 space-y-6">
+        {/* 工单 12: 学习首页 (登录后默认入口). 只保留 3 个简单入口按钮,
+            不做大 Dashboard. 用户从这里进入预习/学习/复习. 测验从复习
+            或学习流程进入, 不在首页突出显示. */}
+        {learningMode === 'home' && (
+          <section className="space-y-5">
+            <div className="text-center py-4">
+              <h1 className="text-3xl font-bold font-serif-sc text-[#24292E] mb-2">
+                墨韵中文
+              </h1>
+              <p className="text-sm text-[#57606A]">今天学什么？</p>
+            </div>
+
+            {/* 当前教材 / 课文信息 */}
+            <div className="bg-white border border-[#E6E1D8] rounded-xl p-4 text-center text-sm">
+              {progress.selectedGrade === 'g3' && selectedLessonId && lessonContent.lesson ? (
+                <>
+                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
+                  <div className="font-serif-sc font-bold text-[#24292E]">
+                    {currentGradeInfo.name} · {lessonContent.lesson.title}
+                  </div>
+                </>
+              ) : progress.selectedGrade === 'g3' && textbookLessons.length > 0 ? (
+                <>
+                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
+                  <div className="font-serif-sc font-bold text-[#24292E]">
+                    {currentGradeInfo.name}
+                  </div>
+                  <div className="text-xs text-[#B83A2D] mt-1">请选择课文</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[#8C8273] text-xs mb-1">当前教材</div>
+                  <div className="text-[#B83A2D]">请选择教材</div>
+                </>
+              )}
+            </div>
+
+            {/* 3 个入口按钮 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <button
+                onClick={() => setLearningMode('preview')}
+                className="bg-white border border-[#E6E1D8] rounded-xl p-5 text-left hover:border-[#B83A2D] hover:shadow-sm transition-all"
+              >
+                <div className="font-serif-sc font-bold text-[#24292E] text-base mb-1">预习</div>
+                <div className="text-xs text-[#57606A]">开始今天的预习</div>
+              </button>
+              <button
+                onClick={() => {
+                  setLearningMode('learn');
+                  setActiveTab('character');
+                }}
+                className="bg-white border border-[#E6E1D8] rounded-xl p-5 text-left hover:border-[#B83A2D] hover:shadow-sm transition-all"
+              >
+                <div className="font-serif-sc font-bold text-[#24292E] text-base mb-1">学习</div>
+                <div className="text-xs text-[#57606A]">继续学习</div>
+              </button>
+              <button
+                onClick={() => setLearningMode('review')}
+                className="bg-white border border-[#E6E1D8] rounded-xl p-5 text-left hover:border-[#B83A2D] hover:shadow-sm transition-all"
+              >
+                <div className="font-serif-sc font-bold text-[#24292E] text-base mb-1">复习</div>
+                <div className="text-xs text-[#57606A]">复习已经学过的内容</div>
+              </button>
+            </div>
+
+            {/* 选中教材但未选课文时, 显示课程选择器入口 */}
+            {progress.selectedGrade === 'g3' && !selectedLessonId && (
+              <div className="bg-[#FAF8F4] border border-[#E6E1D8] rounded-xl p-4 text-center text-xs text-[#57606A]">
+                点击下方"学习"或"预习"后可在顶部选择具体课文
+              </div>
+            )}
+          </section>
+        )}
+
         {/* If in Mode Preview */}
         {learningMode === 'preview' && (
           <PreviewMode

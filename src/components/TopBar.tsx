@@ -48,8 +48,8 @@ export const TopBar: React.FC<TopBarProps> = ({
           href="/"
           onClick={(e) => {
             e.preventDefault();
-            onSelectTab('character');
-            onSelectMode('learn');
+            // 工单 12: 点击 logo 回到"学习首页"
+            onSelectMode('home');
           }}
           className="text-lg font-bold tracking-tight text-[#24292E] font-serif-sc whitespace-nowrap shrink-0 hover:text-[#B83A2D] transition-colors"
         >

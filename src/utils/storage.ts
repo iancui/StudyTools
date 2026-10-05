@@ -4,13 +4,24 @@ import { SCHOLAR_RANKS, SYSTEM_BADGES } from '../data/curriculum';
 
 const STORAGE_KEY = 'moyun_chinese_learning_v1';
 
-export const getInitialProgress = (): UserProgress => {
+// 工单 12: 按用户隔离 localStorage 学习数据, 防止 A 退出后 B 看到 A 的进度.
+// 未登录时 (userId 为空) 回退到原全局 key, 保持向后兼容.
+function storageKeyForUser(userId?: number | null): string {
+  if (!userId) return STORAGE_KEY;
+  return `${STORAGE_KEY}:user:${userId}`;
+}
+
+// 工单 12: 新注册用户必须是真正的 0 数据, 不带任何 demo 种子值.
+// 之前 createDefaultProgress 返回 inkDrops=85 / streakDays=1 /
+// 已掌握 c-g1-1,c-g1-2 / w-g1-1 / 解锁 b_checkin_1 徽章, 这是 demo
+// 种子数据, 不应该出现在真实新用户身上.
+export const getInitialProgress = (userId?: number | null): UserProgress => {
   if (typeof window === 'undefined') {
     return createDefaultProgress();
   }
-  
+
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKeyForUser(userId));
     if (!raw) return createDefaultProgress();
     const parsed = JSON.parse(raw);
     return {
@@ -24,27 +35,27 @@ export const getInitialProgress = (): UserProgress => {
 };
 
 export const createDefaultProgress = (): UserProgress => ({
-  selectedGrade: 'g3', // Defaults to Grade 3 (三年级) for balanced showcase
-  inkDrops: 85,
-  streakDays: 1,
+  selectedGrade: 'g3', // 默认年级 (UI 偏好, 不是进度数据), 新用户也是 g3
+  inkDrops: 0,
+  streakDays: 0,
   lastCheckInDate: '',
   checkInHistory: [],
-  todayStudyMinutes: 12,
-  lastStudyTimestamp: Date.now(),
+  todayStudyMinutes: 0,
+  lastStudyTimestamp: 0,
   previewedItemIds: [],
-  masteredCharacterIds: ['c-g1-1', 'c-g1-2'],
-  masteredWordIds: ['w-g1-1'],
+  masteredCharacterIds: [],
+  masteredWordIds: [],
   completedSentenceIds: [],
   wrongQuestionIds: [],
   examHistory: [],
   essayPractices: [],
-  unlockedBadgeIds: ['b_checkin_1']
+  unlockedBadgeIds: []
 });
 
-export const saveProgress = (progress: UserProgress): void => {
+export const saveProgress = (progress: UserProgress, userId?: number | null): void => {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    localStorage.setItem(storageKeyForUser(userId), JSON.stringify(progress));
   } catch (e) {
     console.error('Failed to save progress to localStorage:', e);
   }

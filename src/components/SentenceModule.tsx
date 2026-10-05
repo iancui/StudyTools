@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
-import { Volume2, CheckCircle2, Circle, Eye, EyeOff, Sparkles, BookOpen, PenLine } from 'lucide-react';
+import { Volume2, CheckCircle2, Circle, Eye, EyeOff, Sparkles, BookOpen, PenLine, Loader2 } from 'lucide-react';
 import { SentenceItem, GradeId } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
+import { useAuth } from '../contexts/AuthContext';
+import { saveEssayPractice, SavedEssayPracticeDTO } from '../api/essay';
+
+// 工单 12: 单条仿写提交后的批改结果 (本地状态, 按 sentenceId 索引)
+interface GradingState {
+  loading: boolean;
+  result: SavedEssayPracticeDTO | null;
+  error: string | null;
+}
 
 interface SentenceModuleProps {
   gradeId: GradeId;
@@ -20,6 +29,9 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
   const [userInputs, setUserInputs] = useState<Record<string, string>>({});
+  // 工单 12: 每条句子独立的提交 / 批改状态
+  const [grading, setGrading] = useState<Record<string, GradingState>>({});
+  const { accessToken } = useAuth();
 
   const categories = [
     { id: 'all', label: '全部句式' },
@@ -38,6 +50,54 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  // 工单 12: 提交仿写到后端 POST /api/essays/practices.
+  // 后端做规则批改并写入 essay_practices, 返回 score/feedback.
+  // accessToken 必须存在, userId 由后端从 JWT 解析 (不信任客户端).
+  const handleSubmitImitation = async (item: SentenceItem) => {
+    const content = (userInputs[item.id] || '').trim();
+    if (!content) {
+      setGrading(prev => ({
+        ...prev,
+        [item.id]: { loading: false, result: null, error: '请先输入仿写内容' }
+      }));
+      return;
+    }
+    if (!accessToken) {
+      setGrading(prev => ({
+        ...prev,
+        [item.id]: { loading: false, result: null, error: '未登录, 无法提交仿写' }
+      }));
+      return;
+    }
+
+    setGrading(prev => ({
+      ...prev,
+      [item.id]: { loading: true, result: null, error: null }
+    }));
+
+    try {
+      const result = await saveEssayPractice(accessToken, {
+        title: item.title || '句子仿写',
+        prompt: `${item.originalText}\n${item.practicePrompt || ''}`,
+        content,
+      });
+      setGrading(prev => ({
+        ...prev,
+        [item.id]: { loading: false, result, error: null }
+      }));
+      // 提交成功后自动标记该句为已完成 (+15 墨滴)
+      if (!completedIds.includes(item.id)) {
+        onToggleComplete(item.id);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '提交失败';
+      setGrading(prev => ({
+        ...prev,
+        [item.id]: { loading: false, result: null, error: msg }
+      }));
+    }
   };
 
   return (
@@ -212,6 +272,56 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
                       className="w-full text-xs p-2.5 rounded-lg border border-[#DDD7CD] focus:outline-none focus:border-[#B83A2D] bg-white text-[#24292E] placeholder-[#8C8273]"
                     />
                   </div>
+
+                  {/* 工单 12: 提交按钮 + 批改结果显示 */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSubmitImitation(item)}
+                      disabled={grading[item.id]?.loading === true}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#B83A2D] text-white hover:bg-[#A33225] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {grading[item.id]?.loading ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          <span>提交批改中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={13} />
+                          <span>提交仿写并批改</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[11px] text-[#8C8273]">
+                      提交后由后端规则批改, 写入 essay_practices 表
+                    </span>
+                  </div>
+
+                  {grading[item.id]?.error && (
+                    <div className="text-xs text-[#B83A2D] bg-[#FEF2F2] border border-[#FCA5A5] rounded p-2">
+                      {grading[item.id]?.error}
+                    </div>
+                  )}
+
+                  {grading[item.id]?.result && (
+                    <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg p-3 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[#15803D] font-semibold">
+                          <CheckCircle2 size={13} />
+                          <span>批改结果</span>
+                        </div>
+                        <div className="text-[#24292E] font-bold font-serif-sc">
+                          得分: {grading[item.id]?.result?.score}
+                        </div>
+                      </div>
+                      <div className="text-[#47515F] leading-relaxed">
+                        <strong>反馈:</strong> {grading[item.id]?.result?.feedback}
+                      </div>
+                      <div className="text-[11px] text-[#8C8273]">
+                        字数: {grading[item.id]?.result?.wordCount} · 记录 ID: {grading[item.id]?.result?.id}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Model Answer Reveal */}
                   {isRevealed && (

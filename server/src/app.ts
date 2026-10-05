@@ -10,6 +10,7 @@ import wordProgressRouter from "./routes/word-progress.routes.js";
 import sentenceProgressRouter from "./routes/sentence-progress.routes.js";
 import textbookRouter from "./routes/textbook.routes.js";
 import examRouter from "./routes/exam.routes.js";
+import essayRouter from "./routes/essay.routes.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -55,6 +56,8 @@ app.use("/api/progress/words", wordProgressRouter);
 app.use("/api/progress/sentences", sentenceProgressRouter);
 app.use("/api/textbook", textbookRouter);
 app.use("/api/exams", examRouter);
+// 工单 12: 句子仿写闭环 - POST /api/essays/practices
+app.use("/api/essays", essayRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

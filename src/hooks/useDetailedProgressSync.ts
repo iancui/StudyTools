@@ -44,7 +44,8 @@ export function useDetailedProgressSync({
   progress,
   setProgress,
 }: UseDetailedProgressSyncArgs): void {
-  const { isAuthenticated } = useAuth();
+  // 工单 12: 取 user.id 用于按用户隔离 localStorage 写回.
+  const { isAuthenticated, user } = useAuth();
   const authReq = useAuthenticatedRequest();
 
   const initialSyncDoneRef = useRef(false);
@@ -142,7 +143,8 @@ export function useDetailedProgressSync({
               masteredWordIds: serverWordIds,
               completedSentenceIds: serverSentenceIds,
             };
-            saveProgress(merged);
+            // 工单 12: 写回该用户专属 localStorage key
+            saveProgress(merged, user?.id);
             return merged;
           });
         } else {
