@@ -1,5 +1,21 @@
 import { GradeId } from './chinese';
 
+// ------------------------------------------------------------
+// 工单 17: 详细学习行为统计 (数据驱动复习用)
+// ------------------------------------------------------------
+// 字段与 src/api/detailedProgress.ts 中的 *ProgressDTO 字段一一对应,
+// 由 useDetailedProgressSync 从服务器 DTO 转换写入 UserProgress.
+// 仅前端使用, 不影响数据库 schema.
+export interface DetailedStats {
+  /** 教材项目 ID (tc-xxx / tw-xxx / ts-xxx 或 c-g3-* / w-g3-* / s-g3-*) */
+  itemId: string;
+  practiceCount: number;
+  correctCount: number;
+  wrongCount: number;
+  /** ISO 字符串 或 时间戳(ms); null 表示从未练习过. */
+  lastPracticedAt: string | number | null;
+}
+
 export interface ScholarRank {
   title: string;
   minInk: number;
@@ -68,4 +84,15 @@ export interface UserProgress {
   
   // Badges
   unlockedBadgeIds: string[];
+
+  // ------------------------------------------------------------
+  // 工单 17: 详细学习行为统计 (可选, 数据驱动复习用)
+  // ------------------------------------------------------------
+  // 仅在登录且 useDetailedProgressSync 拉取到服务器数据后才填充.
+  // 未登录或服务器无数据时为 undefined, ReviewMode 此时回退到
+  // 原 buildReviewQuestions 算法, 不影响已有学习体验.
+  // 不新增数据库 schema, 只是前端缓存已加载好的 DTO.
+  detailedCharStats?: Record<string, DetailedStats>;
+  detailedWordStats?: Record<string, DetailedStats>;
+  detailedSentenceStats?: Record<string, DetailedStats>;
 }

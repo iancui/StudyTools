@@ -28,7 +28,7 @@ import {
   updateSentenceProgress,
 } from "../api/detailedProgress";
 import { saveProgress } from "../utils/storage";
-import { UserProgress } from "../types/progress";
+import { DetailedStats, UserProgress } from "../types/progress";
 
 const DEBOUNCE_MS = 1000;
 const MERGE_PROTECT_MS = 2000;
@@ -131,6 +131,42 @@ export function useDetailedProgressSync({
             .filter((s) => s.isCompleted)
             .map((s) => s.sentenceId);
 
+          // 工单 17: 把服务器返回的 DTO 完整统计 (practiceCount /
+          // correctCount / wrongCount / lastPracticedAt) 转成 itemId ->
+          // DetailedStats map 写入 UserProgress, 供数据驱动复习算法使用.
+          // 只覆盖有统计记录的 item; 没有 DTO 的 item 自然不在 map 里,
+          // 复习算法把它视作"从未练习过" (P4).
+          const serverCharStats = toDetailedStatsMap(
+            chars,
+            (c) => c.characterId,
+            (c) => ({
+              practiceCount: c.practiceCount,
+              correctCount: c.correctCount,
+              wrongCount: c.wrongCount,
+              lastPracticedAt: c.lastPracticedAt,
+            })
+          );
+          const serverWordStats = toDetailedStatsMap(
+            words,
+            (w) => w.wordId,
+            (w) => ({
+              practiceCount: w.practiceCount,
+              correctCount: w.correctCount,
+              wrongCount: w.wrongCount,
+              lastPracticedAt: w.lastPracticedAt,
+            })
+          );
+          const serverSentenceStats = toDetailedStatsMap(
+            sentences,
+            (s) => s.sentenceId,
+            (s) => ({
+              practiceCount: s.practiceCount,
+              correctCount: s.correctCount,
+              wrongCount: s.wrongCount,
+              lastPracticedAt: s.lastPracticedAt,
+            })
+          );
+
           // 记录已合并的快照, 避免立刻又触发 PUT.
           lastUploadedCharRef.current = serverCharIds;
           lastUploadedWordRef.current = serverWordIds;
@@ -142,6 +178,9 @@ export function useDetailedProgressSync({
               masteredCharacterIds: serverCharIds,
               masteredWordIds: serverWordIds,
               completedSentenceIds: serverSentenceIds,
+              detailedCharStats: serverCharStats,
+              detailedWordStats: serverWordStats,
+              detailedSentenceStats: serverSentenceStats,
             };
             // 工单 12: 写回该用户专属 localStorage key
             saveProgress(merged, user?.id);
@@ -175,6 +214,46 @@ export function useDetailedProgressSync({
             progress.masteredWordIds;
           lastUploadedSentenceRef.current =
             progress.completedSentenceIds;
+
+          // 工单 17: 服务器无详细记录, 把已加载的 DTO 转成
+          // DetailedStats map 写入本地状态 (PUT masterId 数组时
+          // 后端会重置统计, 这里仅取刚 GET 的初始状态作为快照).
+          const localCharStats = toDetailedStatsMap(
+            chars,
+            (c) => c.characterId,
+            (c) => ({
+              practiceCount: c.practiceCount,
+              correctCount: c.correctCount,
+              wrongCount: c.wrongCount,
+              lastPracticedAt: c.lastPracticedAt,
+            })
+          );
+          const localWordStats = toDetailedStatsMap(
+            words,
+            (w) => w.wordId,
+            (w) => ({
+              practiceCount: w.practiceCount,
+              correctCount: w.correctCount,
+              wrongCount: w.wrongCount,
+              lastPracticedAt: w.lastPracticedAt,
+            })
+          );
+          const localSentenceStats = toDetailedStatsMap(
+            sentences,
+            (s) => s.sentenceId,
+            (s) => ({
+              practiceCount: s.practiceCount,
+              correctCount: s.correctCount,
+              wrongCount: s.wrongCount,
+              lastPracticedAt: s.lastPracticedAt,
+            })
+          );
+          setProgress((prev) => ({
+            ...prev,
+            detailedCharStats: localCharStats,
+            detailedWordStats: localWordStats,
+            detailedSentenceStats: localSentenceStats,
+          }));
         }
       } catch (err) {
         console.warn(
@@ -340,4 +419,43 @@ function arrChanged(
     if (!setB.has(id)) return true;
   }
   return false;
+}
+
+// 工单 17: 把 DTO 数组转成 itemId -> DetailedStats 的 map.
+// 仅保留有统计意义的项 (practiceCount > 0 或 wrongCount > 0
+// 或 lastPracticedAt 不为 null), 服务器从未返回过该 item 时
+// 该 itemId 自然不在 map 中, 复习算法据此识别为"从未练习".
+function toDetailedStatsMap<T extends { updatedAt?: string }>(
+  items: T[],
+  getId: (item: T) => string,
+  pickStats: (item: T) => {
+    practiceCount: number;
+    correctCount: number;
+    wrongCount: number;
+    lastPracticedAt: string | null;
+  }
+): Record<string, DetailedStats> {
+  const map: Record<string, DetailedStats> = {};
+  for (const item of items) {
+    const itemId = getId(item);
+    if (!itemId) continue;
+    const s = pickStats(item);
+    // 只要有任何练习记录就写入 map; 没有任何记录的项
+    // 留给"不在 map 里"的语义, 算法当作"从未练习"处理.
+    if (
+      s.practiceCount === 0 &&
+      s.wrongCount === 0 &&
+      s.lastPracticedAt == null
+    ) {
+      continue;
+    }
+    map[itemId] = {
+      itemId,
+      practiceCount: s.practiceCount,
+      correctCount: s.correctCount,
+      wrongCount: s.wrongCount,
+      lastPracticedAt: s.lastPracticedAt,
+    };
+  }
+  return map;
 }

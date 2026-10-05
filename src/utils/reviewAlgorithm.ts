@@ -39,7 +39,14 @@ import {
   SentenceItem,
   WordItem,
 } from "../types/chinese";
-import { UserProgress } from "../types/progress";
+import {
+  DetailedStats,
+  UserProgress,
+} from "../types/progress";
+
+// 工单 17: DetailedStats 类型现在统一从 src/types/progress.ts 导出
+// (避免类型层与工具层重复定义), 这里 re-export 供现有调用方继续使用.
+export type { DetailedStats } from "../types/progress";
 
 // ------------------------------------------------------------
 // 1. 类型
@@ -513,4 +520,310 @@ export function buildFromProgress(
     maxQuestions: opts?.maxQuestions,
     now: opts?.now,
   });
+}
+
+// ------------------------------------------------------------
+// 8. 工单 17: 数据驱动的复习优先级
+// ------------------------------------------------------------
+//
+// 设计目标:
+//   - 把工单 15 已经记录的真实学习行为 (practiceCount /
+//     correctCount / wrongCount / lastPracticedAt) 真正用于排序.
+//   - 第一版规则可解释、稳定、易测试, 不引入机器学习 / AI.
+//   - 纯函数, 不依赖 React / 网络, 不发新 API 请求, 只用调用方
+//     已经加载好的数据.
+//
+// 优先级 (从高到低, 数字越大越先复习):
+//   P5 (最高): wrongCount > 0 且已到复习时间
+//   P4       : practiceCount === 0 (从未练习)
+//   P3       : accuracy < 0.5 (很不稳定)
+//   P2       : 0.5 <= accuracy < 0.8 (需要巩固)
+//   P1       : 0.8 <= accuracy < 1 (基本掌握) + 长期未练习
+//   P0 (最低): accuracy === 1 且今天刚练过 (今天不再推)
+//
+// 同一优先级内:
+//   - 距离 lastPracticedAt 越久, 越靠前
+//   - 仍相同时, 按 itemId 升序 (稳定排序, 不引入随机)
+// ------------------------------------------------------------
+
+/** 优先级档位, 数字越大越优先. */
+export type ReviewPriorityLevel = 0 | 1 | 2 | 3 | 4 | 5;
+
+/** 计算单条 item 的复习优先级. */
+export function reviewPriority(
+  stats: DetailedStats | undefined,
+  opts: { now?: number; isMastered?: boolean } = {}
+): { level: ReviewPriorityLevel; accuracy: number; daysSince: number } {
+  const now = opts.now ?? Date.now();
+  // 缺数据 = 从未练习过, 走 P4 (与"从未练习"同档)
+  if (!stats) {
+    return { level: 4, accuracy: 0, daysSince: Number.POSITIVE_INFINITY };
+  }
+  const practiceCount = Math.max(0, stats.practiceCount);
+  const correctCount = Math.max(0, stats.correctCount);
+  const wrongCount = Math.max(0, stats.wrongCount);
+
+  // 距离上一次练习的天数 (没练过 = +Infinity)
+  let lastMs: number | null = null;
+  if (stats.lastPracticedAt) {
+    const t =
+      typeof stats.lastPracticedAt === "number"
+        ? stats.lastPracticedAt
+        : Date.parse(stats.lastPracticedAt);
+    if (!Number.isNaN(t)) lastMs = t;
+  }
+  const daysSince = lastMs
+    ? Math.max(0, (now - lastMs) / (24 * 60 * 60 * 1000))
+    : Number.POSITIVE_INFINITY;
+
+  // 正确率 (避免除零)
+  const accuracy = practiceCount > 0 ? correctCount / practiceCount : 0;
+
+  // P5: 有错题记录 (wrongCount > 0). 工单 17: 错误优先级最高.
+  // 注: 用户可以今天刚练过且有错题, 仍优先复习 (buildDataDrivenReviewQuestions
+  // 已保证同一 item 一次复习最多一道题, 不会高频反复).
+  if (wrongCount > 0) {
+    return { level: 5, accuracy, daysSince };
+  }
+
+  // P4: 从未练习
+  if (practiceCount === 0) {
+    return { level: 4, accuracy: 0, daysSince };
+  }
+
+  // 已掌握 + 全对 + 今天刚练过 → P0 (今天不再推)
+  if (
+    opts.isMastered &&
+    accuracy === 1 &&
+    lastMs &&
+    daysSince < 1
+  ) {
+    return { level: 0, accuracy, daysSince };
+  }
+
+  // 按正确率分档 (P3 / P2 / P1)
+  if (accuracy < 0.5) {
+    return { level: 3, accuracy, daysSince };
+  }
+  if (accuracy < 0.8) {
+    return { level: 2, accuracy, daysSince };
+  }
+  if (accuracy < 1) {
+    // 基本掌握: 仅当长期未练习 (>= 7 天) 才进入
+    if (daysSince >= 7) {
+      return { level: 1, accuracy, daysSince };
+    }
+    return { level: 0, accuracy, daysSince };
+  }
+  // accuracy === 1 (稳定正确): 仅当长期未练习 (>= 14 天) 才重新进入
+  if (daysSince >= 14) {
+    return { level: 1, accuracy, daysSince };
+  }
+  return { level: 0, accuracy, daysSince };
+}
+
+/** 工单 17: 单条 item 是否应当进入今日复习. */
+export function shouldReviewByStats(
+  stats: DetailedStats | undefined,
+  opts: { now?: number; isMastered?: boolean } = {}
+): boolean {
+  return reviewPriority(stats, opts).level > 0;
+}
+
+/**
+ * 工单 17: 数据驱动的混合题型生成.
+ *
+ * 与 buildReviewQuestions 的区别:
+ *   - 排序依据从"是否在 wrongIds + 是否 mastered"改为
+ *     practiceCount / correctCount / wrongCount / lastPracticedAt.
+ *   - 同一 item 一次复习最多一道题 (绝不重复出题).
+ *   - today 范围默认 10 题 (工单 16 要求), 不足有多少出多少.
+ *   - 排序稳定: 先按 priority desc, 再按 daysSince desc, 再按 itemId asc.
+ *     同优先级内不引入随机, 不会把真正需要复习的字打乱到后面.
+ *
+ * @param detailedCharStats    生字详细统计 (按 itemId 索引). 没有就传 {}.
+ * @param detailedWordStats    词语详细统计. 没有就传 {}.
+ * @param detailedSentenceStats 句子详细统计. 没有就传 {}.
+ * @param maxQuestions         今日复习最大题数, 默认 10.
+ */
+export interface BuildDataDrivenInput {
+  characters: CharacterItem[];
+  words: WordItem[];
+  sentences: SentenceItem[];
+  masteredCharIds: string[];
+  masteredWordIds: string[];
+  completedSentenceIds: string[];
+  detailedCharStats: Record<string, DetailedStats>;
+  detailedWordStats: Record<string, DetailedStats>;
+  detailedSentenceStats: Record<string, DetailedStats>;
+  maxQuestions?: number;
+  now?: number;
+}
+
+export function buildDataDrivenReviewQuestions(
+  input: BuildDataDrivenInput
+): ReviewQuestion[] {
+  const max = input.maxQuestions ?? 10;
+  const now = input.now ?? Date.now();
+
+  // 1. 给每个候选 item 计算优先级 (O(n))
+  type Entry = {
+    kind: "char" | "word" | "sentence";
+    item: { id: string };
+    level: ReviewPriorityLevel;
+    daysSince: number;
+    itemId: string;
+  };
+
+  const entries: Entry[] = [];
+  for (const c of input.characters) {
+    const r = reviewPriority(input.detailedCharStats[c.id], {
+      now,
+      isMastered: input.masteredCharIds.includes(c.id),
+    });
+    entries.push({
+      kind: "char",
+      item: c,
+      level: r.level,
+      daysSince: r.daysSince,
+      itemId: c.id,
+    });
+  }
+  for (const w of input.words) {
+    const r = reviewPriority(input.detailedWordStats[w.id], {
+      now,
+      isMastered: input.masteredWordIds.includes(w.id),
+    });
+    entries.push({
+      kind: "word",
+      item: w,
+      level: r.level,
+      daysSince: r.daysSince,
+      itemId: w.id,
+    });
+  }
+  for (const s of input.sentences) {
+    const r = reviewPriority(input.detailedSentenceStats[s.id], {
+      now,
+      isMastered: input.completedSentenceIds.includes(s.id),
+    });
+    entries.push({
+      kind: "sentence",
+      item: s,
+      level: r.level,
+      daysSince: r.daysSince,
+      itemId: s.id,
+    });
+  }
+
+  // 2. 过滤掉 level === 0 (今天不需要复习)
+  const candidates = entries.filter((e) => e.level > 0);
+
+  // 3. 稳定排序: priority desc -> daysSince desc -> itemId asc
+  candidates.sort((a, b) => {
+    if (a.level !== b.level) return b.level - a.level;
+    // 都是有限数: 大的在前; 任一为 +Infinity 都会排到前面
+    const aDays = a.daysSince;
+    const bDays = b.daysSince;
+    if (aDays !== bDays) return bDays > aDays ? 1 : -1;
+    return a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0;
+  });
+
+  // 4. 取前 max 个, 每条只生成一道题 (一个 item 一次复习最多一道题)
+  const picked = candidates.slice(0, max);
+  const questions: ReviewQuestion[] = [];
+  for (const e of picked) {
+    if (e.kind === "char") {
+      const c = e.item as CharacterItem;
+      questions.push({
+        id: `${c.id}-pc`,
+        type: "pinyin_to_char",
+        prompt: c.pinyin,
+        answer: c.char,
+        source: { kind: "char", refId: c.id },
+        options: buildCharOptions(c.char, input.characters),
+      });
+    } else if (e.kind === "word") {
+      const w = e.item as WordItem;
+      questions.push({
+        id: `${w.id}-wr`,
+        type: "word_recognize",
+        prompt: w.word,
+        answer: w.definition || w.pinyin || w.pos,
+        source: { kind: "word", refId: w.id },
+        hint: w.exampleSentence,
+      });
+    } else {
+      const s = e.item as SentenceItem;
+      const text = s.originalText || "";
+      if (text.length < 4) continue;
+      const last = text[text.length - 1];
+      const blanked = text.slice(0, -1) + "____";
+      questions.push({
+        id: `${s.id}-sf`,
+        type: "sentence_fill",
+        prompt: blanked,
+        answer: last,
+        source: { kind: "sentence", refId: s.id },
+        hint: s.categoryLabel,
+      });
+    }
+  }
+  return questions;
+}
+
+/** 工单 17: 数据驱动的复习范围预览. */
+export function previewDataDrivenScope(opts: {
+  characters: CharacterItem[];
+  words: WordItem[];
+  sentences: SentenceItem[];
+  masteredCharIds: string[];
+  masteredWordIds: string[];
+  completedSentenceIds: string[];
+  detailedCharStats: Record<string, DetailedStats>;
+  detailedWordStats: Record<string, DetailedStats>;
+  detailedSentenceStats: Record<string, DetailedStats>;
+  now?: number;
+}): ReviewScopePreview {
+  const now = opts.now ?? Date.now();
+  let charCount = 0;
+  let wordCount = 0;
+  let sentenceCount = 0;
+  for (const c of opts.characters) {
+    if (
+      reviewPriority(opts.detailedCharStats[c.id], {
+        now,
+        isMastered: opts.masteredCharIds.includes(c.id),
+      }).level > 0
+    ) {
+      charCount++;
+    }
+  }
+  for (const w of opts.words) {
+    if (
+      reviewPriority(opts.detailedWordStats[w.id], {
+        now,
+        isMastered: opts.masteredWordIds.includes(w.id),
+      }).level > 0
+    ) {
+      wordCount++;
+    }
+  }
+  for (const s of opts.sentences) {
+    if (
+      reviewPriority(opts.detailedSentenceStats[s.id], {
+        now,
+        isMastered: opts.completedSentenceIds.includes(s.id),
+      }).level > 0
+    ) {
+      sentenceCount++;
+    }
+  }
+  const total = charCount + wordCount + sentenceCount;
+  return {
+    charCount,
+    wordCount,
+    sentenceCount,
+    estimatedMinutes: Math.max(1, Math.round((total * 30) / 60)),
+  };
 }

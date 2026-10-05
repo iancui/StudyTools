@@ -8,9 +8,12 @@ import {
   ReviewScope,
   ReviewQuestion,
   AnswerRecord,
+  DetailedStats,
   buildReviewQuestions,
+  buildDataDrivenReviewQuestions,
   summarizeReviewSession,
   previewReviewScope,
+  previewDataDrivenScope,
   questionTypeLabel,
 } from '../utils/reviewAlgorithm';
 
@@ -47,6 +50,15 @@ interface ReviewModeProps {
   onSelectLessonIds?: (ids: string[]) => void;
   // 多课数据加载状态 (期中/期末/多选会触发额外加载)
   scopeLoading?: boolean;
+  // ------------------------------------------------------------
+  // 工单 17: 数据驱动复习所需的详细学习统计 (可选)
+  // ------------------------------------------------------------
+  // 由 useDetailedProgressSync 从服务器 DTO 写入 UserProgress,
+  // App.tsx 直接透传到本组件. 全部 undefined 时 (未登录或服务器无数据)
+  // SmartReviewFlow 回退到原 buildReviewQuestions 算法, 不影响已有体验.
+  detailedCharStats?: Record<string, DetailedStats>;
+  detailedWordStats?: Record<string, DetailedStats>;
+  detailedSentenceStats?: Record<string, DetailedStats>;
 }
 
 export const ReviewMode: React.FC<ReviewModeProps> = ({
@@ -69,6 +81,9 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   selectedLessonIds = [],
   onSelectLessonIds,
   scopeLoading = false,
+  detailedCharStats,
+  detailedWordStats,
+  detailedSentenceStats,
 }) => {
   // 工单 14: 新增 'smart' 子页签作为默认入口, 使用 reviewAlgorithm.ts
   // 生成的混合题型 (看字回忆拼音 / 看拼音回忆字 / 听音选字 / 词语识别 / 句子填空).
@@ -439,6 +454,12 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           onEarnInk={onEarnInk}
           onToggleCharMaster={onToggleCharMaster}
           onToggleWordMaster={onToggleWordMaster}
+          // 工单 17: 数据驱动复习用 (可选, 缺失时回退到 buildReviewQuestions)
+          detailedCharStats={detailedCharStats}
+          detailedWordStats={detailedWordStats}
+          detailedSentenceStats={detailedSentenceStats}
+          // 工单 17: 提供给"今日复习无内容时"的 [去学习] 入口
+          onEnterLearn={onEnterLearn}
         />
       )}
 
@@ -737,6 +758,12 @@ interface SmartReviewFlowProps {
   onEarnInk: (amount: number) => void;
   onToggleCharMaster: (id: string) => void;
   onToggleWordMaster: (id: string) => void;
+  // 工单 17: 数据驱动复习用 (可选)
+  detailedCharStats?: Record<string, DetailedStats>;
+  detailedWordStats?: Record<string, DetailedStats>;
+  detailedSentenceStats?: Record<string, DetailedStats>;
+  // 工单 17: 今日复习无内容时, 提供 [去学习] 入口 (可选)
+  onEnterLearn?: (tab: MainTab) => void;
 }
 
 type SmartPhase = 'preview' | 'in_progress' | 'finished';
@@ -751,6 +778,10 @@ const SmartReviewFlow: React.FC<SmartReviewFlowProps> = ({
   completedSentenceIds,
   onEarnInk,
   onToggleCharMaster,
+  detailedCharStats,
+  detailedWordStats,
+  detailedSentenceStats,
+  onEnterLearn,
 }) => {
   const [phase, setPhase] = useState<SmartPhase>('preview');
   const [userAnswer, setUserAnswer] = useState('');
@@ -762,34 +793,72 @@ const SmartReviewFlow: React.FC<SmartReviewFlowProps> = ({
   // 这样 shouldReviewItem 会把所有未掌握 + 未完成的项目都视为需要今日复习.
   const wrongIds: string[] = useMemo(() => [], []);
 
+  // 工单 17: 是否进入"数据驱动复习"模式.
+  // 只有当 App.tsx 透传过来详细统计 map 时才启用, 否则回退到
+  // 原 buildReviewQuestions (基于 isMastered + wrongIds 的近似逻辑).
+  const hasDetailedStats =
+    detailedCharStats !== undefined ||
+    detailedWordStats !== undefined ||
+    detailedSentenceStats !== undefined;
+
   // 范围预览 (X 个生字 / X 个词语 / X 个句子 / X 分钟)
-  const scopePreview = useMemo(
-    () =>
-      previewReviewScope({
+  const scopePreview = useMemo(() => {
+    if (hasDetailedStats) {
+      return previewDataDrivenScope({
         characters: charactersList,
         words: wordsList,
         sentences: sentencesList,
         masteredCharIds,
         masteredWordIds,
         completedSentenceIds,
-        wrongIds,
-      }),
-    [
-      charactersList,
-      wordsList,
-      sentencesList,
+        detailedCharStats: detailedCharStats ?? {},
+        detailedWordStats: detailedWordStats ?? {},
+        detailedSentenceStats: detailedSentenceStats ?? {},
+      });
+    }
+    return previewReviewScope({
+      characters: charactersList,
+      words: wordsList,
+      sentences: sentencesList,
       masteredCharIds,
       masteredWordIds,
       completedSentenceIds,
       wrongIds,
-    ]
-  );
+    });
+  }, [
+    charactersList,
+    wordsList,
+    sentencesList,
+    masteredCharIds,
+    masteredWordIds,
+    completedSentenceIds,
+    wrongIds,
+    hasDetailedStats,
+    detailedCharStats,
+    detailedWordStats,
+    detailedSentenceStats,
+  ]);
 
   // 当前选定范围应复习的题目 (混合题型 + 错题优先 + 未掌握优先)
   const questions = useMemo<ReviewQuestion[]>(() => {
-    // today 范围: shouldReviewItem 筛选后只保留需要复习的
-    // 其他范围 (current_lesson / selected / midterm / final): App.tsx 已经按
-    // 范围重新拉取并传入 charactersList / wordsList / sentencesList, 这里直接出题.
+    // today 范围: 数据驱动模式默认 10 题 (工单 16 要求), 不足有多少出多少.
+    // 其他范围 (current_lesson / selected / midterm / final):
+    //   - 数据驱动模式: 仍按数据优先级排序, 上限放宽到 20 题
+    //   - 回退模式: 由 buildReviewQuestions 处理
+    if (hasDetailedStats) {
+      return buildDataDrivenReviewQuestions({
+        characters: charactersList,
+        words: wordsList,
+        sentences: sentencesList,
+        masteredCharIds,
+        masteredWordIds,
+        completedSentenceIds,
+        detailedCharStats: detailedCharStats ?? {},
+        detailedWordStats: detailedWordStats ?? {},
+        detailedSentenceStats: detailedSentenceStats ?? {},
+        maxQuestions: reviewScope === 'today' ? 10 : 20,
+      });
+    }
     return buildReviewQuestions({
       characters: charactersList,
       words: wordsList,
@@ -809,6 +878,10 @@ const SmartReviewFlow: React.FC<SmartReviewFlowProps> = ({
     completedSentenceIds,
     wrongIds,
     reviewScope,
+    hasDetailedStats,
+    detailedCharStats,
+    detailedWordStats,
+    detailedSentenceStats,
   ]);
 
   const currentQ = questions[currentIdx];
@@ -876,8 +949,40 @@ const SmartReviewFlow: React.FC<SmartReviewFlowProps> = ({
         </div>
 
         {totalItems === 0 ? (
-          <div className="p-6 text-center text-xs text-[#57606A] bg-[#FAF8F5] border border-[#E6E1D8] rounded-lg">
-            当前范围没有需要复习的内容, 可以休息一下, 或者切换其他范围.
+          // 工单 17: 今日复习无内容时显示 [去学习] 入口;
+          // 其他范围无内容仍提示切换范围 (不强制把全部教材塞入复习).
+          <div className="p-6 text-center space-y-4 bg-[#FAF8F5] border border-[#E6E1D8] rounded-lg">
+            <div>
+              <p className="text-sm font-serif-sc text-[#24292E]">
+                今天暂时没有需要重点复习的内容.
+              </p>
+              <p className="text-xs text-[#57606A] mt-1">
+                可以提前练习一些新内容.
+              </p>
+            </div>
+            {reviewScope === 'today' && typeof onEnterLearn === 'function' && (
+              <div className="flex justify-center gap-2 flex-wrap">
+                <button
+                  onClick={() => onEnterLearn('character')}
+                  className="px-4 py-2 text-xs font-medium bg-[#B83A2D] text-white rounded-lg hover:bg-[#9E2F23] transition-colors flex items-center gap-1.5"
+                >
+                  <BookOpen size={13} />
+                  去学习生字
+                </button>
+                <button
+                  onClick={() => onEnterLearn('word')}
+                  className="px-4 py-2 text-xs font-medium bg-[#1B4D3E] text-white rounded-lg hover:bg-[#143025] transition-colors flex items-center gap-1.5"
+                >
+                  <BookOpen size={13} />
+                  去学习词语
+                </button>
+              </div>
+            )}
+            {!(reviewScope === 'today' && typeof onEnterLearn === 'function') && (
+              <p className="text-xs text-[#8C8273]">
+                可以切换其他范围, 或者休息一下.
+              </p>
+            )}
           </div>
         ) : (
           <>

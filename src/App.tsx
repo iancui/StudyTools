@@ -511,6 +511,14 @@ function AppContent() {
               reviewUsingTextbook ? setReviewSelectedLessonIds : undefined
             }
             scopeLoading={reviewUsingTextbook ? reviewMulti.loading : false}
+            // 工单 17: 把 useDetailedProgressSync 从服务器 DTO 同步到的
+            // 详细统计 (practiceCount / correctCount / wrongCount /
+            // lastPracticedAt) 透传给 ReviewMode, 由其切换到
+            // buildDataDrivenReviewQuestions 进行数据驱动排序.
+            // 未登录或服务器无数据时为 undefined, ReviewMode 自动回退.
+            detailedCharStats={progress.detailedCharStats}
+            detailedWordStats={progress.detailedWordStats}
+            detailedSentenceStats={progress.detailedSentenceStats}
           />
         )}
 
