@@ -60,19 +60,6 @@ function toInt(
   return fallback;
 }
 
-function toScore(
-  v: unknown
-): number {
-  if (typeof v === "number" && Number.isFinite(v)) {
-    return Math.max(0, Math.min(100, v));
-  }
-  if (typeof v === "string") {
-    const n = parseFloat(v);
-    if (Number.isFinite(n)) return Math.max(0, Math.min(100, n));
-  }
-  return 0;
-}
-
 function toIsoDate(
   v: unknown
 ): Date | null {
@@ -96,9 +83,9 @@ function toStringOrNull(
  * saveExamRecord 把客户端提交的考试结果写入 exam_records 表.
  *
  * 严格校验:
- *   - totalQuestions >= 0
- *   - correctQuestions + wrongQuestions <= totalQuestions
- *   - score 在 [0, 100]
+ *   - totalQuestions > 0
+ *   - correctQuestions + wrongQuestions === totalQuestions (前端每题必判, 无未答题概念)
+ *   - score 由后端按 correctQuestions / totalQuestions 重新计算 (Math.round), 忽略客户端提交的 score
  *   - durationSeconds >= 0
  *   - answers 数组中每个元素必须有 questionId (字符串) 和 isCorrect (布尔)
  *
@@ -115,14 +102,15 @@ export async function saveExamRecord(
   if (totalQuestions === 0) {
     throw new Error("总题数必须大于 0");
   }
-  if (correctQuestions + wrongQuestions > totalQuestions) {
-    throw new Error("答对 + 答错题数不能超过总题数");
+  if (correctQuestions + wrongQuestions !== totalQuestions) {
+    throw new Error("答对 + 答错题数必须等于总题数");
   }
   if (correctQuestions > totalQuestions) {
     throw new Error("答对题数不能超过总题数");
   }
 
-  const score = toScore(raw.score);
+  // score 由后端按正确率重新计算, 防止客户端伪造分数 (前端 = Math.round(correct/total*100))
+  const score = Math.round((correctQuestions / totalQuestions) * 100);
   const durationSeconds = toInt(raw.durationSeconds, 0);
   const examId = toStringOrNull(raw.examId, 100);
   const examName = toStringOrNull(raw.examName, 200);
