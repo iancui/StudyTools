@@ -1,29 +1,44 @@
 import React, { useState, useMemo } from 'react';
-import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare } from 'lucide-react';
+import { RotateCw, Volume2, CheckCircle2, HelpCircle, Layers, Headphones, Sparkles, Shuffle, CheckSquare, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GradeId, CharacterItem, WordItem } from '../types/chinese';
+import { GradeId, CharacterItem, WordItem, SentenceItem, MainTab } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
 
 interface ReviewModeProps {
   gradeId: GradeId;
   charactersList: CharacterItem[];
   wordsList: WordItem[];
+  // 工单 10: 教材模式下传入句子列表, 用于复习统计与展示.
+  // 原 curriculum 模式不传, 默认空数组.
+  sentencesList?: SentenceItem[];
   masteredCharIds: string[];
   masteredWordIds: string[];
+  // 工单 10: 句子完成进度
+  completedSentenceIds?: string[];
   onToggleCharMaster: (id: string) => void;
   onToggleWordMaster: (id: string) => void;
+  // 工单 10: 句子完成切换 (与 App.tsx handleToggleSentence 一致)
+  onToggleSentenceComplete?: (id: string) => void;
   onEarnInk: (amount: number) => void;
+  // 工单 10: 教材模式下传课文标题 + 进入学习模块入口
+  lessonTitle?: string;
+  onEnterLearn?: (tab: MainTab) => void;
 }
 
 export const ReviewMode: React.FC<ReviewModeProps> = ({
   gradeId,
   charactersList,
   wordsList,
+  sentencesList = [],
   masteredCharIds,
   masteredWordIds,
+  completedSentenceIds = [],
   onToggleCharMaster,
   onToggleWordMaster,
-  onEarnInk
+  onToggleSentenceComplete,
+  onEarnInk,
+  lessonTitle,
+  onEnterLearn,
 }) => {
   const [reviewTab, setReviewTab] = useState<'flashcard' | 'dictation' | 'needs_work'>('flashcard');
 
@@ -190,6 +205,20 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 工单 10: 教材模式下展示课文复习概览 (课文名称 + 三类进度统计 + 进入学习入口) */}
+      {typeof onEnterLearn === 'function' && lessonTitle && (
+        <TextbookReviewOverview
+          lessonTitle={lessonTitle}
+          charactersList={charactersList}
+          wordsList={wordsList}
+          sentencesList={sentencesList}
+          masteredCharIds={masteredCharIds}
+          masteredWordIds={masteredWordIds}
+          completedSentenceIds={completedSentenceIds}
+          onEnterLearn={onEnterLearn}
+        />
+      )}
 
       {/* Select / Random Subset Toolbar */}
       <div className="flex items-center gap-2 p-3 bg-white border border-[#E8E3DA] rounded-xl text-xs">
@@ -513,3 +542,183 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
     </div>
   );
 };
+
+// ------------------------------------------------------------
+// 工单 10: 教材复习概览卡片
+// ------------------------------------------------------------
+// 显示当前教材课程的复习统计: 课文名称 + 生字/词语/句子 已掌握/待复习 数量.
+// 复习统计严格按当前教材课程的 ID 过滤, 不会因为用户掌握了
+// 原 curriculum (c-g3-*) 而误统计教材生字为已掌握.
+// "待复习"定义: 教材内容 ID 不在用户对应 progress 数组中.
+// ------------------------------------------------------------
+
+interface TextbookReviewOverviewProps {
+  lessonTitle: string;
+  charactersList: CharacterItem[];
+  wordsList: WordItem[];
+  sentencesList: SentenceItem[];
+  masteredCharIds: string[];
+  masteredWordIds: string[];
+  completedSentenceIds: string[];
+  onEnterLearn: (tab: MainTab) => void;
+}
+
+function TextbookReviewOverview({
+  lessonTitle,
+  charactersList,
+  wordsList,
+  sentencesList,
+  masteredCharIds,
+  masteredWordIds,
+  completedSentenceIds,
+  onEnterLearn,
+}: TextbookReviewOverviewProps) {
+  // 严格按当前教材课程的 ID 过滤 (不依赖 c-g3-* / w-g3-* / s-g3-* 等原 curriculum ID)
+  const charMastered = charactersList.filter(c => masteredCharIds.includes(c.id)).length;
+  const charTotal = charactersList.length;
+  const charPending = charTotal - charMastered;
+
+  const wordMastered = wordsList.filter(w => masteredWordIds.includes(w.id)).length;
+  const wordTotal = wordsList.length;
+  const wordPending = wordTotal - wordMastered;
+
+  const sentCompleted = sentencesList.filter(s => completedSentenceIds.includes(s.id)).length;
+  const sentTotal = sentencesList.length;
+  const sentPending = sentTotal - sentCompleted;
+
+  const totalMastered = charMastered + wordMastered + sentCompleted;
+  const totalItems = charTotal + wordTotal + sentTotal;
+  const overallPct = totalItems > 0 ? Math.round((totalMastered / totalItems) * 100) : 0;
+
+  // 预览待复习内容 (前 3 条)
+  const pendingChars = charactersList.filter(c => !masteredCharIds.includes(c.id)).slice(0, 3);
+  const pendingWords = wordsList.filter(w => !masteredWordIds.includes(w.id)).slice(0, 3);
+  const pendingSents = sentencesList.filter(s => !completedSentenceIds.includes(s.id)).slice(0, 3);
+
+  const cards: { tab: MainTab; label: string; total: number; mastered: number; pending: number; pendingPreview: { id: string; text: string; sub?: string }[]; color: string; }[] = [
+    {
+      tab: 'character', label: '生字', total: charTotal, mastered: charMastered, pending: charPending,
+      pendingPreview: pendingChars.map(c => ({ id: c.id, text: c.char, sub: c.pinyin })),
+      color: '#B83A2D',
+    },
+    {
+      tab: 'word', label: '词语', total: wordTotal, mastered: wordMastered, pending: wordPending,
+      pendingPreview: pendingWords.map(w => ({ id: w.id, text: w.word, sub: w.pinyin })),
+      color: '#1B4D3E',
+    },
+    {
+      tab: 'sentence', label: '句子', total: sentTotal, mastered: sentCompleted, pending: sentPending,
+      pendingPreview: pendingSents.map(s => ({ id: s.id, text: s.originalText })),
+      color: '#92400E',
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-[#E8E3DA] rounded-xl p-5 sm:p-6 shadow-xs space-y-4">
+      {/* Header: 课文名称 + 总体进度 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0ECE4]">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[#1B4D3E] bg-[#EBF7EE] px-2.5 py-0.5 rounded border border-[#C6E9CC]">
+              教材复习
+            </span>
+            <h3 className="text-lg font-bold font-serif-sc text-[#24292E]">
+              {lessonTitle}
+            </h3>
+          </div>
+          <p className="text-xs text-[#57606A] mt-1">
+            按本课实际教材内容统计 · 严格按 ID 过滤, 不混入原 curriculum 数据
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <div className="text-[11px] text-[#8C8273]">总体进度</div>
+            <div className="text-lg font-bold font-mono text-[#B83A2D]">
+              {totalMastered}/{totalItems}
+            </div>
+          </div>
+          <div className="w-16 h-16 relative">
+            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke="#EFECE6" strokeWidth="3" />
+              <circle
+                cx="18" cy="18" r="15.5" fill="none" stroke="#B83A2D" strokeWidth="3"
+                strokeDasharray={`${(overallPct / 100) * 97.4} 97.4`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[#24292E]">
+              {overallPct}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 三类复习统计卡片 */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {cards.map(card => (
+          <div
+            key={card.tab}
+            className="p-4 rounded-lg bg-[#FAF8F5] border border-[#EDE7DD] space-y-3 flex flex-col"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: card.color }}
+                />
+                <span className="text-sm font-bold text-[#24292E]">{card.label}</span>
+              </div>
+              <span className="text-xs font-mono text-[#57606A]">
+                <span className="font-bold text-[#16A34A]">{card.mastered}</span>
+                <span className="text-[#A8A196]"> / {card.total}</span>
+              </span>
+            </div>
+
+            {/* 进度条 */}
+            <div className="h-1.5 bg-[#EFECE6] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${card.total > 0 ? (card.mastered / card.total) * 100 : 0}%`,
+                  backgroundColor: card.color,
+                }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#16A34A]">已掌握 {card.mastered}</span>
+              <span className="text-[#B83A2D]">待复习 {card.pending}</span>
+            </div>
+
+            {/* 待复习预览 */}
+            {card.pendingPreview.length > 0 && (
+              <div className="pt-2 border-t border-[#E6DFD1] space-y-1">
+                <div className="text-[11px] text-[#8C8273]">待复习预览：</div>
+                {card.pendingPreview.map(p => (
+                  <div key={p.id} className="text-xs text-[#24292E] flex items-center gap-1.5">
+                    <span className="font-serif-sc font-medium truncate">{p.text}</span>
+                    {p.sub && <span className="text-[#8C8273] font-mono text-[10px] shrink-0">{p.sub}</span>}
+                  </div>
+                ))}
+                {card.pending > card.pendingPreview.length && (
+                  <div className="text-[11px] text-[#A8A196]">
+                    ...还有 {card.pending - card.pendingPreview.length} 条
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 进入复习入口 */}
+            <button
+              onClick={() => onEnterLearn(card.tab)}
+              className="mt-auto flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-white rounded-lg transition-colors"
+              style={{ backgroundColor: card.color }}
+            >
+              复习{card.label} <ArrowRight size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
