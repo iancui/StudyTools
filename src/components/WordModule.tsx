@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Volume2, CheckCircle2, Circle, RotateCw, Sparkles, BookOpen, Layers, Shuffle, CheckSquare } from 'lucide-react';
 import { WordItem, GradeId } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
+import { useAuth } from '../contexts/AuthContext';
+import { recordWordPractice } from '../api/practice';
 
 interface WordModuleProps {
   gradeId: GradeId;
@@ -26,6 +28,28 @@ export const WordModule: React.FC<WordModuleProps> = ({
   const [shuffledSeed, setShuffledSeed] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectModeActive, setSelectModeActive] = useState(false);
+
+  // 工单 15: 防重复计数 (与 CharacterModule 同策略). 不放进
+  // useEffect, 只在用户点击 "标为已掌握" / flashcard "打卡掌握"
+  // 时触发.
+  const { accessToken } = useAuth();
+  const inFlightWordRef = useRef<Set<string>>(new Set());
+
+  const handleToggleMasterWithPractice = (id: string) => {
+    const isBecomingMastered = !masteredIds.includes(id);
+    onToggleMaster(id);
+
+    if (isBecomingMastered && accessToken && !inFlightWordRef.current.has(id)) {
+      inFlightWordRef.current.add(id);
+      recordWordPractice(accessToken, { itemId: id, result: 'correct' })
+        .catch((err) => {
+          console.warn('记录词语练习失败, 不影响学习:', err);
+        })
+        .finally(() => {
+          inFlightWordRef.current.delete(id);
+        });
+    }
+  };
 
   // Compute displayed words
   const displayedWords = useMemo(() => {
@@ -246,7 +270,7 @@ export const WordModule: React.FC<WordModuleProps> = ({
                       </div>
 
                       <button
-                        onClick={() => onToggleMaster(item.id)}
+                        onClick={() => handleToggleMasterWithPractice(item.id)}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-colors ${
                           isMastered
                             ? 'bg-[#EBF7EE] text-[#16A34A] border border-[#C6E9CC]'
@@ -387,7 +411,7 @@ export const WordModule: React.FC<WordModuleProps> = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleMaster(activeCardWord.id);
+                  handleToggleMasterWithPractice(activeCardWord.id);
                 }}
                 className={`text-xs px-3 py-1 rounded transition-colors ${
                   masteredIds.includes(activeCardWord.id)

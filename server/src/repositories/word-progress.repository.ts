@@ -54,6 +54,77 @@ export async function findWordProgressByUserId(
   return rows;
 }
 
+/**
+ * 工单 15: 记录一次词语练习事件 (累加统计).
+ *
+ * 行为与 character 表一致: 行不存在 INSERT practice_count=1,
+ * 行存在 UPDATE practice_count + 1, correct/wrong + 1, last_practiced_at=NOW().
+ * 不动 is_mastered / mastered_at.
+ */
+export async function recordWordPractice(
+  userId: number,
+  wordId: string,
+  result: "correct" | "wrong"
+): Promise<WordProgressRow | null> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.execute<ResultSetHeader>(
+      `
+      INSERT INTO user_word_progress (
+        user_id,
+        word_id,
+        is_mastered,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        mastered_at
+      )
+      VALUES (?, ?, 0, 1, ?, ?, NOW(), NOW(), NULL)
+      ON DUPLICATE KEY UPDATE
+        practice_count = practice_count + 1,
+        correct_count = correct_count + ?,
+        wrong_count = wrong_count + ?,
+        last_practiced_at = NOW()
+      `,
+      [
+        userId,
+        wordId,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+      ]
+    );
+
+    const [rows] = await conn.query<WordProgressRow[]>(
+      `
+      SELECT
+        id,
+        user_id,
+        word_id,
+        is_mastered,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        mastered_at,
+        created_at,
+        updated_at
+      FROM user_word_progress
+      WHERE user_id = ? AND word_id = ?
+      LIMIT 1
+      `,
+      [userId, wordId]
+    );
+    return rows[0] ?? null;
+  } finally {
+    conn.release();
+  }
+}
+
 export async function replaceWordMasteredSnapshot(
   userId: number,
   masteredIds: string[]

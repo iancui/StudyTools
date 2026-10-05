@@ -1,6 +1,7 @@
 import {
   SentenceProgressRow,
   findSentenceProgressByUserId,
+  recordSentencePractice,
   replaceSentenceCompletedSnapshot,
 } from "../repositories/sentence-progress.repository.js";
 
@@ -44,6 +45,35 @@ export async function getSentenceProgress(
   const rows =
     await findSentenceProgressByUserId(userId);
   return rows.map(toDTO);
+}
+
+/**
+ * 工单 15: 记录一次句子练习事件.
+ * 行为与 character/word 一致, 但不动 is_completed / completed_at.
+ */
+export async function recordSentencePracticeEvent(
+  userId: number,
+  raw: Record<string, unknown>
+): Promise<SentenceProgressDTO> {
+  const itemId = raw.itemId;
+  const result = raw.result;
+
+  if (typeof itemId !== "string" || !itemId.trim()) {
+    throw new Error("缺少 itemId");
+  }
+  if (result !== "correct" && result !== "wrong") {
+    throw new Error("result 必须是 correct 或 wrong");
+  }
+
+  const row = await recordSentencePractice(
+    userId,
+    itemId,
+    result
+  );
+  if (!row) {
+    throw new Error("记录练习事件失败");
+  }
+  return toDTO(row);
 }
 
 interface RawItem {

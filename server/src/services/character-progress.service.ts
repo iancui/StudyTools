@@ -1,6 +1,7 @@
 import {
   CharacterProgressRow,
   findCharacterProgressByUserId,
+  recordCharacterPractice,
   replaceCharacterMasteredSnapshot,
 } from "../repositories/character-progress.repository.js";
 
@@ -45,6 +46,38 @@ export async function getCharacterProgress(
   const rows =
     await findCharacterProgressByUserId(userId);
   return rows.map(toDTO);
+}
+
+/**
+ * 工单 15: 记录一次生字练习事件.
+ *
+ * 客户端只发送 { itemId, result }, 服务器自己累加
+ * practice_count / correct_count / wrong_count, 不信任客户端
+ * 提交的累计值. user_id 强制取自 JWT, 忽略 body.userId.
+ */
+export async function recordCharacterPracticeEvent(
+  userId: number,
+  raw: Record<string, unknown>
+): Promise<CharacterProgressDTO> {
+  const itemId = raw.itemId;
+  const result = raw.result;
+
+  if (typeof itemId !== "string" || !itemId.trim()) {
+    throw new Error("缺少 itemId");
+  }
+  if (result !== "correct" && result !== "wrong") {
+    throw new Error("result 必须是 correct 或 wrong");
+  }
+
+  const row = await recordCharacterPractice(
+    userId,
+    itemId,
+    result
+  );
+  if (!row) {
+    throw new Error("记录练习事件失败");
+  }
+  return toDTO(row);
 }
 
 interface RawItem {

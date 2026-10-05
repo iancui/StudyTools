@@ -70,6 +70,83 @@ export async function findCharacterProgressByUserId(
  *      - 行不存在 -> INSERT is_mastered=1, first_learned_at=NOW(),
  *        last_practiced_at=NOW(), mastered_at=NOW()
  */
+/**
+ * 工单 15: 记录一次生字练习事件 (累加统计).
+ *
+ * 行为:
+ *   - 行不存在: INSERT 一条新记录, practice_count=1,
+ *     (correct|wrong)_count=1, first_learned_at=NOW(), last_practiced_at=NOW()
+ *   - 行已存在: UPDATE practice_count + 1, 对应 correct/wrong + 1,
+ *     last_practiced_at=NOW() (不动 first_learned_at / mastered_at / is_mastered)
+ *
+ * @param result "correct" 表示答对, "wrong" 表示答错
+ */
+export async function recordCharacterPractice(
+  userId: number,
+  characterId: string,
+  result: "correct" | "wrong"
+): Promise<CharacterProgressRow | null> {
+  const conn = await pool.getConnection();
+  try {
+    // 先 UPSERT 累加统计, 再 SELECT 返回最新行.
+    // 不动 is_mastered / mastered_at: 由 PUT /progress/characters 单独维护.
+    await conn.execute<ResultSetHeader>(
+      `
+      INSERT INTO user_character_progress (
+        user_id,
+        character_id,
+        is_mastered,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        mastered_at
+      )
+      VALUES (?, ?, 0, 1, ?, ?, NOW(), NOW(), NULL)
+      ON DUPLICATE KEY UPDATE
+        practice_count = practice_count + 1,
+        correct_count = correct_count + ?,
+        wrong_count = wrong_count + ?,
+        last_practiced_at = NOW()
+      `,
+      [
+        userId,
+        characterId,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+      ]
+    );
+
+    const [rows] = await conn.query<CharacterProgressRow[]>(
+      `
+      SELECT
+        id,
+        user_id,
+        character_id,
+        is_mastered,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        mastered_at,
+        created_at,
+        updated_at
+      FROM user_character_progress
+      WHERE user_id = ? AND character_id = ?
+      LIMIT 1
+      `,
+      [userId, characterId]
+    );
+    return rows[0] ?? null;
+  } finally {
+    conn.release();
+  }
+}
+
 export async function replaceCharacterMasteredSnapshot(
   userId: number,
   masteredIds: string[]

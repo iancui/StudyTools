@@ -8,6 +8,7 @@ import {
 
 import {
   getCharacterProgress,
+  recordCharacterPracticeEvent,
   updateCharacterProgress,
 } from "../services/character-progress.service.js";
 
@@ -86,6 +87,59 @@ export async function update(
         error instanceof Error
           ? error.message
           : "更新生字学习记录失败",
+    });
+  }
+}
+
+// POST /api/progress/characters/practice
+// body: { itemId: string, result: "correct" | "wrong" }
+// 工单 15: 记录一次生字练习事件.
+// 服务器自己累加 practice_count / correct_count / wrong_count,
+// 不信任客户端提交的累计值. user_id 强制取自 JWT,
+// 即使 body 中带 userId 也会被忽略.
+export async function record(
+  req: AuthenticatedRequest,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "未登录",
+      });
+    }
+
+    const body =
+      (req.body as Record<string, unknown>) || {};
+
+    const data = await recordCharacterPracticeEvent(
+      req.user.id,
+      body
+    );
+
+    res.json({
+      success: true,
+      message: "已记录练习",
+      data,
+    });
+  } catch (error) {
+    console.error(
+      "Record character practice error:",
+      error
+    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : "记录练习失败";
+    // 参数错误返回 400, 其他返回 500
+    const status =
+      message.includes("缺少") ||
+      message.includes("必须是")
+        ? 400
+        : 500;
+    res.status(status).json({
+      success: false,
+      message,
     });
   }
 }

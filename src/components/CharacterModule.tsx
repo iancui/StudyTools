@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Volume2, CheckCircle2, Circle, PenTool, Sparkles, X, ChevronRight, BookOpen, Shuffle, AlertTriangle, ListFilter, CheckSquare } from 'lucide-react';
 import { CharacterItem, GradeId } from '../types/chinese';
 import { speakChinese, speakChar, speakPinyin } from '../utils/speech';
 import { HandwritingCanvas } from './HandwritingCanvas';
+import { useAuth } from '../contexts/AuthContext';
+import { recordCharacterPractice } from '../api/practice';
 
 interface CharacterModuleProps {
   gradeId: GradeId;
@@ -20,13 +22,42 @@ export const CharacterModule: React.FC<CharacterModuleProps> = ({
   const [selectedCharId, setSelectedCharId] = useState<string>(charactersList[0]?.id || '');
   const [showCanvasModal, setShowCanvasModal] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
-  
+
   // Selection and Random Modes
   const [randomCount, setRandomCount] = useState<number | 'all'>('all');
   const [shuffledSeed, setShuffledSeed] = useState(0);
   const [onlyPhoneticTrap, setOnlyPhoneticTrap] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectModeActive, setSelectModeActive] = useState(false);
+
+  // 工单 15: 防重复计数 - 记录正在上报的 itemId, 同一 itemId 在
+  // 上一次请求未完成前不会再次发起. 不放进 useEffect, 只在用户
+  // 明确点击 "标为已掌握" / "练好" 时触发, 所以 StrictMode 也不会
+  // 重复调用 (StrictMode 只会双调用 render 与 effect, 不会双调用
+  // 事件 handler).
+  const { accessToken } = useAuth();
+  const inFlightCharRef = useRef<Set<string>>(new Set());
+
+  const handleToggleMasterWithPractice = (id: string) => {
+    // 判断方向: 之前未掌握 → 现在标为掌握 (一次正确练习).
+    // 之前已掌握 → 现在取消掌握 (撤销, 不算练习, 不上报).
+    const isBecomingMastered = !masteredIds.includes(id);
+
+    // 先调用原有逻辑 (更新 mastered 数组 + 墨滴)
+    onToggleMaster(id);
+
+    // 工单 15: 上报练习事件. 失败不阻断学习, 不抛错给 UI.
+    if (isBecomingMastered && accessToken && !inFlightCharRef.current.has(id)) {
+      inFlightCharRef.current.add(id);
+      recordCharacterPractice(accessToken, { itemId: id, result: 'correct' })
+        .catch((err) => {
+          console.warn('记录生字练习失败, 不影响学习:', err);
+        })
+        .finally(() => {
+          inFlightCharRef.current.delete(id);
+        });
+    }
+  };
 
   // Compute displayed list based on filters and random selection
   const displayedCharacters = useMemo(() => {
@@ -313,7 +344,7 @@ export const CharacterModule: React.FC<CharacterModuleProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onToggleMaster(activeChar.id)}
+                  onClick={() => handleToggleMasterWithPractice(activeChar.id)}
                   className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg transition-colors ${
                     isMastered
                       ? 'bg-[#EBF7EE] text-[#16A34A] border border-[#C6E9CC]'
@@ -502,7 +533,7 @@ export const CharacterModule: React.FC<CharacterModuleProps> = ({
                 targetChar={activeChar.char}
                 pinyin={activeChar.pinyin}
                 onMastered={() => {
-                  onToggleMaster(activeChar.id);
+                  handleToggleMasterWithPractice(activeChar.id);
                   setTimeout(() => setShowCanvasModal(false), 800);
                 }}
               />

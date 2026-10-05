@@ -58,6 +58,77 @@ export async function findSentenceProgressByUserId(
   return rows;
 }
 
+/**
+ * 工单 15: 记录一次句子练习事件 (累加统计).
+ *
+ * 行为与 character/word 表一致, 但 is_completed / completed_at 与
+ * is_mastered / mastered_at 字段名不同. 累加统计不动 is_completed /
+ * completed_at, 由 PUT /progress/sentences 单独维护.
+ */
+export async function recordSentencePractice(
+  userId: number,
+  sentenceId: string,
+  result: "correct" | "wrong"
+): Promise<SentenceProgressRow | null> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.execute<ResultSetHeader>(
+      `
+      INSERT INTO user_sentence_progress (
+        user_id,
+        sentence_id,
+        is_completed,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        completed_at
+      )
+      VALUES (?, ?, 0, 1, ?, ?, NOW(), NOW(), NULL)
+      ON DUPLICATE KEY UPDATE
+        practice_count = practice_count + 1,
+        correct_count = correct_count + ?,
+        wrong_count = wrong_count + ?,
+        last_practiced_at = NOW()
+      `,
+      [
+        userId,
+        sentenceId,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+        result === "correct" ? 1 : 0,
+        result === "wrong" ? 1 : 0,
+      ]
+    );
+
+    const [rows] = await conn.query<SentenceProgressRow[]>(
+      `
+      SELECT
+        id,
+        user_id,
+        sentence_id,
+        is_completed,
+        practice_count,
+        correct_count,
+        wrong_count,
+        first_learned_at,
+        last_practiced_at,
+        completed_at,
+        created_at,
+        updated_at
+      FROM user_sentence_progress
+      WHERE user_id = ? AND sentence_id = ?
+      LIMIT 1
+      `,
+      [userId, sentenceId]
+    );
+    return rows[0] ?? null;
+  } finally {
+    conn.release();
+  }
+}
+
 export async function replaceSentenceCompletedSnapshot(
   userId: number,
   completedIds: string[]

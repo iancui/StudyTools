@@ -1,6 +1,7 @@
 import {
   WordProgressRow,
   findWordProgressByUserId,
+  recordWordPractice,
   replaceWordMasteredSnapshot,
 } from "../repositories/word-progress.repository.js";
 
@@ -44,6 +45,35 @@ export async function getWordProgress(
   const rows =
     await findWordProgressByUserId(userId);
   return rows.map(toDTO);
+}
+
+/**
+ * 工单 15: 记录一次词语练习事件.
+ * 行为与 recordCharacterPracticeEvent 一致.
+ */
+export async function recordWordPracticeEvent(
+  userId: number,
+  raw: Record<string, unknown>
+): Promise<WordProgressDTO> {
+  const itemId = raw.itemId;
+  const result = raw.result;
+
+  if (typeof itemId !== "string" || !itemId.trim()) {
+    throw new Error("缺少 itemId");
+  }
+  if (result !== "correct" && result !== "wrong") {
+    throw new Error("result 必须是 correct 或 wrong");
+  }
+
+  const row = await recordWordPractice(
+    userId,
+    itemId,
+    result
+  );
+  if (!row) {
+    throw new Error("记录练习事件失败");
+  }
+  return toDTO(row);
 }
 
 interface RawItem {

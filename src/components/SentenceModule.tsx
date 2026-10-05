@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Volume2, CheckCircle2, Circle, Eye, EyeOff, Sparkles, BookOpen, PenLine, Loader2 } from 'lucide-react';
 import { SentenceItem, GradeId } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
 import { useAuth } from '../contexts/AuthContext';
 import { saveEssayPractice, SavedEssayPracticeDTO } from '../api/essay';
+import { recordSentencePractice } from '../api/practice';
 
 // 工单 12: 单条仿写提交后的批改结果 (本地状态, 按 sentenceId 索引)
 interface GradingState {
@@ -32,6 +33,10 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
   // 工单 12: 每条句子独立的提交 / 批改状态
   const [grading, setGrading] = useState<Record<string, GradingState>>({});
   const { accessToken } = useAuth();
+
+  // 工单 15: 防重复计数. 同一条 sentence 在一次提交中只允许触发一次
+  // practice 上报, 不放进会重复执行的 useEffect.
+  const inFlightSentenceRef = useRef<Set<string>>(new Set());
 
   const categories = [
     { id: 'all', label: '全部句式' },
@@ -90,6 +95,22 @@ export const SentenceModule: React.FC<SentenceModuleProps> = ({
       // 提交成功后自动标记该句为已完成 (+15 墨滴)
       if (!completedIds.includes(item.id)) {
         onToggleComplete(item.id);
+      }
+
+      // 工单 15: 句子仿写提交被视作一次真实练习. 后端规则批改返回 score,
+      // 60 分及以上视为 "correct", 否则 "wrong". 上报失败不阻断学习流程,
+      // 也不影响上面已经设置好的 grading/完成状态. 同一条 sentence 一次提交
+      // 只允许触发一次 practice, 防止 StrictMode / 重复渲染重复计数.
+      if (!inFlightSentenceRef.current.has(item.id)) {
+        inFlightSentenceRef.current.add(item.id);
+        const practiceResult = result.score >= 60 ? 'correct' : 'wrong';
+        recordSentencePractice(accessToken, { itemId: item.id, result: practiceResult })
+          .catch((err) => {
+            console.warn('记录句子练习失败, 不影响学习:', err);
+          })
+          .finally(() => {
+            inFlightSentenceRef.current.delete(item.id);
+          });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '提交失败';
