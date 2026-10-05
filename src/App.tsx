@@ -286,10 +286,19 @@ function AppContent() {
         {learningMode === 'preview' && (
           <PreviewMode
             gradeId={progress.selectedGrade}
-            charactersList={currentGradeCharacters}
-            wordsList={currentGradeWords}
+            // 工单 09: 三年级选中教材课程时, 预习页用数据库教材内容;
+            // 其他年级或未选课时回退到原 curriculum 数据.
+            charactersList={usingTextbook ? displayCharacters : currentGradeCharacters}
+            wordsList={usingTextbook ? displayWords : currentGradeWords}
+            sentencesList={usingTextbook ? displaySentences : undefined}
             previewedItemIds={progress.previewedItemIds}
             onCompletePreview={handleCompletePreview}
+            // 工单 09: 教材模式下传课文标题 + 提供进入学习模块入口
+            lessonTitle={usingTextbook ? lessonContent.lesson?.title : undefined}
+            onEnterLearn={usingTextbook ? (tab) => {
+              setActiveTab(tab);
+              setLearningMode('learn');
+            } : undefined}
           />
         )}
 

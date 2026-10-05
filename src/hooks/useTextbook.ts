@@ -3,6 +3,8 @@
 //
 // 工单 06: 把 API 教材数据接入现有的 CharacterModule / WordModule /
 // SentenceModule.
+// 工单 07A: 稳定 ID 对接 — 验证当前 ID 生成满足"稳定 + 唯一 +
+//           识字/写字区分"要求, 加固注释便于 07B 维护.
 //
 // 设计原则:
 //   1. 复用现有 CharacterItem / WordItem / SentenceItem 类型,
@@ -14,6 +16,40 @@
 //      其他年级继续用原 curriculum 本地数据.
 //   4. 只读, 不写 user_progress 等业务表.
 //   5. API 失败时显示错误提示但不阻塞页面渲染 (loading=false, error=消息).
+//
+// ------------------------------------------------------------
+// ID 设计原则 (工单 07A)
+// ------------------------------------------------------------
+// 生成方式:
+//   - character item.id = `tc-${dto.id}`     (dto.id 是 textbook_characters.id)
+//   - word item.id      = `tw-${dto.id}`     (dto.id 是 textbook_words.id)
+//   - sentence item.id  = `ts-${dto.id}`     (dto.id 是 textbook_sentences.id)
+//
+// 满足工单 07A 的所有要求:
+//   ✅ 稳定: dto.id 是数据库 PK (自增整数), 同一条记录每次加载 id 都相同.
+//   ✅ 不使用随机/时间戳: 完全由数据库 PK 决定, 不调用 Math.random / Date.now.
+//   ✅ 优先使用数据库已有稳定 ID: 直接拼字符串前缀 + dto.id.
+//   ✅ string 类型: 模板字面量 `tc-${dto.id}` 隐式 String() 转换,
+//      与 CharacterItem.id / WordItem.id / SentenceItem.id 类型一致,
+//      与 user_*_progress.*_id 数据库字段 (varchar) 兼容.
+//   ✅ 全局唯一: textbook_characters.id / textbook_words.id /
+//      textbook_sentences.id 都是大表 PK, 跨课程跨年级都唯一.
+//   ✅ 识字/写字区分: character 表同一文字同时存在识字 + 写字两条记录时,
+//      它们的 PK 不同 (例: 第1课"扬"字识字 id=3 / 写字 id=12),
+//      所以生成的 item.id 自然不同 (`tc-3` vs `tc-12`),
+//      满足工单第 6 条要求. charRole 字段单独保留在 DTO 上,
+//      UI 需要时可在转换时附到 char/exampleSentence 等位置展示,
+//      不需要塞进 ID.
+//   ✅ 不与原 curriculum 数据冲突: 原 curriculum 用 `c-g3-1` / `w-g3-1` /
+//      `s-g3-1` 格式, 教材 ID 用 `tc-` / `tw-` / `ts-` 前缀, 完全分离.
+//
+// 07B 对接说明:
+//   07B 把 masteredCharacterIds / masteredWordIds / completedSentenceIds
+//   写入 user_*_progress 表时, 直接用 `tc-${id}` / `tw-${id}` / `ts-${id}`
+//   作为 characterId / wordId / sentenceId 即可.
+//   服务端如需回查 textbook_*.id, 从前缀 `tc-` / `tw-` / `ts-` 解析出
+//   数字部分. 当前 07A 不实现服务端解析, 留给 07B 处理.
+
 
 import { useEffect, useState } from "react";
 
@@ -186,6 +222,14 @@ export function useTextbookLessonContent(
 
 // ------------------------------------------------------------
 // 3. DTO → Item 转换 (保留组件兼容性, 缺字段用合理默认值)
+//
+// ID 生成 (工单 07A, 详见文件头注释):
+//   - character: `tc-${dto.id}` (dto.id = textbook_characters.id, 数据库 PK)
+//   - word:      `tw-${dto.id}` (dto.id = textbook_words.id, 数据库 PK)
+//   - sentence:  `ts-${dto.id}` (dto.id = textbook_sentences.id, 数据库 PK)
+//
+// 不调用 Math.random / Date.now / nanoid, 同一条数据库记录每次加载
+// 都得到完全相同的字符串 ID, 满足 07A "稳定 + 唯一" 要求.
 // ------------------------------------------------------------
 
 function toCharacterItem(

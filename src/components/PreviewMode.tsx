@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { BookOpen, CheckCircle2, Circle, Volume2, Sparkles, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle2, Volume2, Sparkles, HelpCircle, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GradeId, CharacterItem, WordItem } from '../types/chinese';
+import { GradeId, CharacterItem, WordItem, SentenceItem, MainTab } from '../types/chinese';
 import { PREVIEW_GUIDES } from '../data/curriculum';
 import { speakChinese } from '../utils/speech';
 
@@ -9,22 +9,35 @@ interface PreviewModeProps {
   gradeId: GradeId;
   charactersList?: CharacterItem[];
   wordsList?: WordItem[];
+  sentencesList?: SentenceItem[];
   previewedItemIds: string[];
   onCompletePreview: (guideId: string) => void;
+  // 工单 09: 教材预习入口. 三年级选中课程时传入课文标题;
+  // 同时支持从预习页直接跳入生字/词语/句子学习模块.
+  lessonTitle?: string;
+  onEnterLearn?: (tab: MainTab) => void;
 }
 
 export const PreviewMode: React.FC<PreviewModeProps> = ({
   gradeId,
   charactersList = [],
   wordsList = [],
+  sentencesList = [],
   previewedItemIds,
-  onCompletePreview
+  onCompletePreview,
+  lessonTitle,
+  onEnterLearn,
 }) => {
   const guide = PREVIEW_GUIDES[gradeId] || PREVIEW_GUIDES['g3'];
   const characters = charactersList;
   const words = wordsList;
+  const sentences = sentencesList;
 
   const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
+  // 工单 09: 教材模式下用 lessonTitle 作标题, 否则回退到原 guide.lessonTitle
+  const displayTitle = lessonTitle || guide.lessonTitle;
+  // 工单 09: 是否处于教材模式 (有 onEnterLearn 回调即代表可跳转学习)
+  const canEnterLearn = typeof onEnterLearn === 'function';
   const isCompleted = previewedItemIds.includes(`prev-${gradeId}`);
 
   const toggleQuestion = (idx: number) => {
@@ -49,17 +62,25 @@ export const PreviewMode: React.FC<PreviewModeProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E6E1D8]">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-[#1B4D3E] bg-[#EBF7EE] px-2.5 py-0.5 rounded border border-[#C6E9CC]">
               课前三步预习法
             </span>
             <h2 className="text-xl font-bold font-serif-sc text-[#24292E]">
-              {guide.lessonTitle}
+              {displayTitle}
             </h2>
           </div>
           <p className="text-xs text-[#57606A] mt-1">
             字词初探 · 要点先知 · 思考探究 · 做好充分课前储备
           </p>
+          {/* 工单 09: 教材模式下展示本课数据概览 */}
+          {canEnterLearn && (
+            <p className="text-xs text-[#57606A] mt-1">
+              本课内容：生字 <span className="font-bold text-[#B83A2D]">{characters.length}</span> 条 ·
+              词语 <span className="font-bold text-[#B83A2D]">{words.length}</span> 条 ·
+              重点句 <span className="font-bold text-[#B83A2D]">{sentences.length}</span> 条
+            </p>
+          )}
         </div>
 
         <button
@@ -103,7 +124,20 @@ export const PreviewMode: React.FC<PreviewModeProps> = ({
 
         {/* Characters Bar */}
         <div>
-          <span className="text-xs font-semibold text-[#8C8273] block mb-2">本课生字：</span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-[#8C8273]">
+              本课生字（{characters.length} 条）
+            </span>
+            {/* 工单 09: 教材模式下提供"进入生字学习"入口 */}
+            {canEnterLearn && characters.length > 0 && (
+              <button
+                onClick={() => onEnterLearn?.('character')}
+                className="flex items-center gap-1 text-xs text-[#B83A2D] hover:text-[#9E2F23] font-medium"
+              >
+                进入生字学习 <ArrowRight size={12} />
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2.5">
             {characters.map((c) => (
               <button
@@ -127,7 +161,20 @@ export const PreviewMode: React.FC<PreviewModeProps> = ({
 
         {/* Words Bar */}
         <div>
-          <span className="text-xs font-semibold text-[#8C8273] block mb-2">核心词汇：</span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-[#8C8273]">
+              核心词汇（{words.length} 条）
+            </span>
+            {/* 工单 09: 教材模式下提供"进入词语学习"入口 */}
+            {canEnterLearn && words.length > 0 && (
+              <button
+                onClick={() => onEnterLearn?.('word')}
+                className="flex items-center gap-1 text-xs text-[#B83A2D] hover:text-[#9E2F23] font-medium"
+              >
+                进入词语学习 <ArrowRight size={12} />
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {words.map((w) => (
               <button
@@ -142,6 +189,44 @@ export const PreviewMode: React.FC<PreviewModeProps> = ({
             ))}
           </div>
         </div>
+
+        {/* 工单 09: 教材模式下增加重点句区域 (原 PreviewMode 没有句子展示) */}
+        {canEnterLearn && sentences.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-[#8C8273]">
+                重点句子（{sentences.length} 条）
+              </span>
+              <button
+                onClick={() => onEnterLearn?.('sentence')}
+                className="flex items-center gap-1 text-xs text-[#B83A2D] hover:text-[#9E2F23] font-medium"
+              >
+                进入句子学习 <ArrowRight size={12} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {sentences.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => speakChinese(s.originalText)}
+                  className="group w-full flex items-start gap-2 p-3 rounded-lg bg-[#FAF8F5] border border-[#DDD7CD] hover:border-[#B83A2D] hover:bg-white text-left transition-all"
+                >
+                  <Volume2 size={14} className="text-[#A8A196] group-hover:text-[#B83A2D] mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#24292E] leading-relaxed line-clamp-3">
+                      {s.originalText}
+                    </p>
+                    {s.categoryLabel && (
+                      <span className="inline-block mt-1 text-[11px] text-[#8C8273] bg-white border border-[#E6DFD1] px-1.5 py-0.5 rounded">
+                        {s.categoryLabel}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* STEP 2: GUIDED OVERVIEW STEPS */}
