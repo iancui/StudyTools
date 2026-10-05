@@ -15,8 +15,11 @@ import { ExamMode } from './components/ExamMode';
 import { ProgressDashboard } from './components/ProgressDashboard';
 import { CurriculumConfigModule } from './components/CurriculumConfigModule';
 import { stopSpeech } from './utils/speech';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthPage } from './components/AuthPage';
 
-export default function App() {
+function AppContent() {
+  const { isAuthenticated, isLoading, user, logout } = useAuth();
   const [progress, setProgress] = useState<UserProgress>(getInitialProgress);
   const [curriculum, setCurriculum] = useState<CurriculumConfig>(loadCurriculum);
   const [activeTab, setActiveTab] = useState<MainTab>('character');
@@ -197,6 +200,30 @@ export default function App() {
   const currentGradeEssays = curriculum.essays[progress.selectedGrade] || [];
   const currentGradeExams = curriculum.exams[progress.selectedGrade] || [];
 
+  // 应用启动时正在恢复登录状态:显示加载页
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] paper-texture">
+        <div className="text-center">
+          <div className="text-2xl font-bold font-serif-sc text-[#24292E] mb-2">
+            墨韵中文
+          </div>
+          <div className="text-sm text-[#57606A]">正在加载...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // 未登录:显示登录/注册页
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  const handleLogout = async () => {
+    stopSpeech();
+    await logout();
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-[#24292E] paper-texture">
       {/* Universal Top Bar */}
@@ -327,11 +354,29 @@ export default function App() {
             “博观而约取，厚积而薄发。”
           </div>
 
-          <div>
+          <div className="flex items-center gap-3">
             <span>涵盖小学、初中、高中课程 · 预习 · 复习 · 测验 · 自定义数据</span>
+            <span className="text-[#E6E1D8]">|</span>
+            <span className="text-[#24292E]">
+              {user?.nickname || user?.username}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1 text-xs border border-[#B83A2D] text-[#B83A2D] rounded hover:bg-[#B83A2D] hover:text-white transition-colors"
+            >
+              退出登录
+            </button>
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
