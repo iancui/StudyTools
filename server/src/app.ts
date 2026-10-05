@@ -5,6 +5,9 @@ import helmet from "helmet";
 import healthRouter from "./routes/health.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import progressRouter from "./routes/progress.routes.js";
+import characterProgressRouter from "./routes/character-progress.routes.js";
+import wordProgressRouter from "./routes/word-progress.routes.js";
+import sentenceProgressRouter from "./routes/sentence-progress.routes.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -45,6 +48,9 @@ app.get("/", (_req, res) => {
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/progress", progressRouter);
+app.use("/api/progress/characters", characterProgressRouter);
+app.use("/api/progress/words", wordProgressRouter);
+app.use("/api/progress/sentences", sentenceProgressRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

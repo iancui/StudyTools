@@ -18,6 +18,7 @@ import { stopSpeech } from './utils/speech';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
 import { useProgressSync } from './hooks/useProgressSync';
+import { useDetailedProgressSync } from './hooks/useDetailedProgressSync';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -29,6 +30,11 @@ function AppContent() {
   // 学习进度云同步: 登录后从服务器恢复摘要, 学习时防抖 PUT 上传.
   // 内部全部 try/catch, 云端失败不影响本地学习.
   useProgressSync({ progress, setProgress });
+
+  // 详细学习记录同步: 生字/词语/句子三个数组的云端同步.
+  // 与 useProgressSync 互补, 仅处理 masteredCharacterIds /
+  // masteredWordIds / completedSentenceIds 三个 ID 数组.
+  useDetailedProgressSync({ progress, setProgress });
 
   // Sync progress changes to localStorage and check for badge updates
   useEffect(() => {
