@@ -4,6 +4,7 @@ import helmet from "helmet";
 
 import healthRouter from "./routes/health.routes.js";
 import authRouter from "./routes/auth.routes.js";
+import progressRouter from "./routes/progress.routes.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -43,6 +44,7 @@ app.get("/", (_req, res) => {
 
 app.use("/api/health", healthRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/progress", progressRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

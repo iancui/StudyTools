@@ -17,6 +17,7 @@ import { CurriculumConfigModule } from './components/CurriculumConfigModule';
 import { stopSpeech } from './utils/speech';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AuthPage } from './components/AuthPage';
+import { useProgressSync } from './hooks/useProgressSync';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
@@ -24,6 +25,10 @@ function AppContent() {
   const [curriculum, setCurriculum] = useState<CurriculumConfig>(loadCurriculum);
   const [activeTab, setActiveTab] = useState<MainTab>('character');
   const [learningMode, setLearningMode] = useState<LearningMode>('learn');
+
+  // 学习进度云同步: 登录后从服务器恢复摘要, 学习时防抖 PUT 上传.
+  // 内部全部 try/catch, 云端失败不影响本地学习.
+  useProgressSync({ progress, setProgress });
 
   // Sync progress changes to localStorage and check for badge updates
   useEffect(() => {
