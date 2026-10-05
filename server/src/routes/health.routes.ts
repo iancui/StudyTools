@@ -13,6 +13,7 @@ router.get("/", async (_req, res) => {
       success: true,
       message: "墨韵中文 API 正常运行",
       database: rows,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Database health check failed:", error);

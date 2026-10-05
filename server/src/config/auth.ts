@@ -1,4 +1,6 @@
-import jwt from "jsonwebtoken";
+import jwt, {
+  SignOptions,
+} from "jsonwebtoken";
 
 export interface AccessTokenPayload {
   userId: number;
@@ -15,12 +17,18 @@ function getJwtSecret(): string {
   return secret;
 }
 
+function getJwtExpiresIn(): string {
+  return process.env.JWT_ACCESS_EXPIRES_IN || "15m";
+}
+
 export function createAccessToken(
   payload: AccessTokenPayload
 ): string {
-  return jwt.sign(payload, getJwtSecret(), {
-    expiresIn: "15m",
-  });
+  const options: SignOptions = {
+    expiresIn: getJwtExpiresIn() as SignOptions["expiresIn"],
+  };
+
+  return jwt.sign(payload, getJwtSecret(), options);
 }
 
 export function verifyAccessToken(

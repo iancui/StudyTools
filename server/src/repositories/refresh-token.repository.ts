@@ -90,3 +90,82 @@ export async function revokeAllUserRefreshTokens(
     [userId]
   );
 }
+
+export type RotateResult =
+  | { ok: true; userId: number }
+  | { ok: false; reason: "not_found" | "revoked" | "expired" };
+
+export async function rotateRefreshToken(
+  oldTokenHash: string,
+  newTokenHash: string,
+  newExpiresAt: Date
+): Promise<RotateResult> {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query<RefreshTokenRow[]>(
+      `
+      SELECT
+        id,
+        user_id,
+        token_hash,
+        expires_at,
+        revoked_at
+      FROM refresh_tokens
+      WHERE token_hash = ?
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [oldTokenHash]
+    );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+      return { ok: false, reason: "not_found" };
+    }
+
+    const stored = rows[0];
+
+    if (stored.revoked_at) {
+      await connection.rollback();
+      return { ok: false, reason: "revoked" };
+    }
+
+    if (new Date(stored.expires_at).getTime() <= Date.now()) {
+      await connection.rollback();
+      return { ok: false, reason: "expired" };
+    }
+
+    await connection.execute(
+      `
+      UPDATE refresh_tokens
+      SET revoked_at = NOW()
+      WHERE id = ?
+      `,
+      [stored.id]
+    );
+
+    await connection.execute<ResultSetHeader>(
+      `
+      INSERT INTO refresh_tokens (
+        user_id,
+        token_hash,
+        expires_at
+      )
+      VALUES (?, ?, ?)
+      `,
+      [stored.user_id, newTokenHash, newExpiresAt]
+    );
+
+    await connection.commit();
+
+    return { ok: true, userId: stored.user_id };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}

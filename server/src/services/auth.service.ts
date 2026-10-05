@@ -12,9 +12,9 @@ import {
 
 import {
   createRefreshToken,
-  findRefreshToken,
   revokeAllUserRefreshTokens,
   revokeRefreshToken,
+  rotateRefreshToken,
 } from "../repositories/refresh-token.repository.js";
 
 import {
@@ -190,38 +190,43 @@ export async function refreshAccessToken(
     );
   }
 
-  const tokenHash =
+  const oldTokenHash =
     hashToken(refreshToken);
 
-  const storedToken =
-    await findRefreshToken(
-      tokenHash
-    );
+  const newRefreshToken =
+    generateRefreshToken();
 
-  if (!storedToken) {
+  const newTokenHash =
+    hashToken(newRefreshToken);
+
+  const newExpiresAt =
+    getRefreshTokenExpiresAt();
+
+  const rotation = await rotateRefreshToken(
+    oldTokenHash,
+    newTokenHash,
+    newExpiresAt
+  );
+
+  if (!rotation.ok) {
+    if (rotation.reason === "revoked") {
+      throw new Error(
+        "Refresh Token 已失效"
+      );
+    }
+    if (rotation.reason === "expired") {
+      throw new Error(
+        "Refresh Token 已过期"
+      );
+    }
     throw new Error(
       "Refresh Token 无效"
     );
   }
 
-  if (storedToken.revoked_at) {
-    throw new Error(
-      "Refresh Token 已失效"
-    );
-  }
-
-  if (
-    new Date(storedToken.expires_at)
-      .getTime() <= Date.now()
-  ) {
-    throw new Error(
-      "Refresh Token 已过期"
-    );
-  }
-
   const user =
     await findUserById(
-      storedToken.user_id
+      rotation.userId
     );
 
   if (!user) {
@@ -244,6 +249,7 @@ export async function refreshAccessToken(
 
   return {
     accessToken,
+    refreshToken: newRefreshToken,
     expiresIn: 15 * 60,
   };
 }
