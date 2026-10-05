@@ -3,6 +3,7 @@ import { Volume2, CheckCircle2, Circle, PenTool, Sparkles, X, ChevronRight, Book
 import { CharacterItem, GradeId } from '../types/chinese';
 import { speakChinese, speakChar, speakPinyin } from '../utils/speech';
 import { HandwritingCanvas } from './HandwritingCanvas';
+import { CharacterPractice } from './CharacterPractice';
 import { useAuth } from '../contexts/AuthContext';
 import { recordCharacterPractice } from '../api/practice';
 
@@ -365,6 +366,11 @@ export const CharacterModule: React.FC<CharacterModuleProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* 工单 16: 生字练一练 (看拼音写汉字 -> 精确匹配 -> 上报 practice) */}
+            {activeChar && (
+              <CharacterPractice character={activeChar} />
+            )}
 
             {/* STROKE ORDER DECOMPOSITION (笔顺全部分解与指引) */}
             <div className="bg-[#FAF8F5] border border-[#EDE7DC] rounded-xl p-4 space-y-3">

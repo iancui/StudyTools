@@ -4,6 +4,7 @@ import { WordItem, GradeId } from '../types/chinese';
 import { speakChinese } from '../utils/speech';
 import { useAuth } from '../contexts/AuthContext';
 import { recordWordPractice } from '../api/practice';
+import { WordPractice } from './WordPractice';
 
 interface WordModuleProps {
   gradeId: GradeId;
@@ -333,6 +334,9 @@ export const WordModule: React.FC<WordModuleProps> = ({
                         </span>
                       </div>
                     )}
+
+                    {/* 工单 16: 词语练一练 (四选一选拼音 -> 上报 practice) */}
+                    <WordPractice word={item} courseWords={wordsList} />
                   </div>
                 </div>
               );
