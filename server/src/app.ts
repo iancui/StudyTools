@@ -8,6 +8,7 @@ import progressRouter from "./routes/progress.routes.js";
 import characterProgressRouter from "./routes/character-progress.routes.js";
 import wordProgressRouter from "./routes/word-progress.routes.js";
 import sentenceProgressRouter from "./routes/sentence-progress.routes.js";
+import textbookRouter from "./routes/textbook.routes.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -51,6 +52,7 @@ app.use("/api/progress", progressRouter);
 app.use("/api/progress/characters", characterProgressRouter);
 app.use("/api/progress/words", wordProgressRouter);
 app.use("/api/progress/sentences", sentenceProgressRouter);
+app.use("/api/textbook", textbookRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
