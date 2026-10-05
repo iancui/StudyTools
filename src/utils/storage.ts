@@ -36,6 +36,8 @@ export const getInitialProgress = (userId?: number | null): UserProgress => {
 
 export const createDefaultProgress = (): UserProgress => ({
   selectedGrade: 'g3', // 默认年级 (UI 偏好, 不是进度数据), 新用户也是 g3
+  // 工单 18.5: 默认学期 "上册", 与 selectedGrade 一起长期保存.
+  selectedSemester: '上册',
   inkDrops: 0,
   streakDays: 0,
   lastCheckInDate: '',

@@ -6,11 +6,14 @@ import { ChevronDown, Menu, X, Sparkles } from 'lucide-react';
 
 interface TopBarProps {
   currentGradeId: GradeId;
+  // 工单 18.5: 学期属于长期学习配置, 与年级一起在 TopBar 展示并可修改.
+  currentSemester: '上册' | '下册';
   activeTab: MainTab;
   learningMode: LearningMode;
   inkDrops: number;
   isCheckedInToday: boolean;
   onSelectGrade: (gradeId: GradeId) => void;
+  onSelectSemester: (semester: '上册' | '下册') => void;
   onSelectTab: (tab: MainTab) => void;
   onSelectMode: (mode: LearningMode) => void;
   onCheckIn: () => void;
@@ -23,11 +26,13 @@ interface TopBarProps {
 //   当前入口有明显选中状态, 点击入口或外部关闭.
 export const TopBar: React.FC<TopBarProps> = ({
   currentGradeId,
+  currentSemester,
   activeTab,
   learningMode,
   inkDrops,
   isCheckedInToday,
   onSelectGrade,
+  onSelectSemester,
   onSelectTab,
   onSelectMode,
   onCheckIn
@@ -113,12 +118,12 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Zone 3: Actions */}
         <div className="flex items-center gap-2.5">
-          {/* Grade Selector Dropdown (desktop only here; mobile shows in menu) */}
-          <div className="relative hidden md:block">
+          {/* 工单 18.5: 紧凑的年级 + 学期切换入口 (桌面). 不再要求用户每次进首页重新选. */}
+          <div className="hidden md:flex items-center gap-1 bg-white border border-[#DDD7CD] hover:border-[#B83A2D] rounded-lg overflow-hidden">
             <select
               value={currentGradeId}
               onChange={(e) => onSelectGrade(e.target.value as GradeId)}
-              className="appearance-none bg-white border border-[#DDD7CD] hover:border-[#B83A2D] text-[#24292E] text-xs font-medium py-1.5 pl-3 pr-7 rounded-lg cursor-pointer focus:outline-none focus:border-[#B83A2D] transition-colors"
+              className="appearance-none bg-transparent text-[#24292E] text-xs font-medium py-1.5 pl-3 pr-2 cursor-pointer focus:outline-none"
             >
               <optgroup label="小学阶段 (1-6年级)">
                 {GRADES_LIST.filter(g => g.section === 'primary').map(g => (
@@ -136,7 +141,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                 ))}
               </optgroup>
             </select>
-            <ChevronDown size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8C8273] pointer-events-none" />
+            <span className="text-[#8C8273] text-xs">·</span>
+            <select
+              value={currentSemester}
+              onChange={(e) => onSelectSemester(e.target.value as '上册' | '下册')}
+              className="appearance-none bg-transparent text-[#24292E] text-xs font-medium py-1.5 pl-1 pr-6 cursor-pointer focus:outline-none"
+            >
+              <option value="上册">上册</option>
+              <option value="下册">下册</option>
+            </select>
+            <ChevronDown size={13} className="-ml-4 text-[#8C8273] pointer-events-none" />
           </div>
 
           {/* Scholar Rank / Ink Counter Badge Button */}
@@ -222,7 +236,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <div className="flex items-center gap-2 text-xs text-[#57606A]">
             <span className="font-semibold text-[#24292E]">{currentGrade.name}</span>
             <span aria-hidden="true">·</span>
-            <span>{currentGrade.stageName}</span>
+            <span>{currentSemester}</span>
             <span aria-hidden="true">·</span>
             <span className="font-serif-sc text-[#8C8273]">{currentGrade.theme}</span>
           </div>
@@ -281,35 +295,48 @@ export const TopBar: React.FC<TopBarProps> = ({
               </div>
             </div>
 
-            {/* 年级选择 */}
+            {/* 年级 + 学期选择 (工单 18.5: 与桌面保持一致) */}
             <div>
               <div className="text-[11px] font-bold text-[#8C8273] uppercase tracking-wider mb-1.5 px-1">
-                当前年级
+                当前年级 / 学期
               </div>
-              <select
-                value={currentGradeId}
-                onChange={(e) => {
-                  onSelectGrade(e.target.value as GradeId);
-                  setMenuOpen(false);
-                }}
-                className="w-full appearance-none bg-white border border-[#DDD7CD] hover:border-[#B83A2D] text-[#24292E] text-xs font-medium py-2 pl-3 pr-7 rounded-lg cursor-pointer focus:outline-none focus:border-[#B83A2D] transition-colors"
-              >
-                <optgroup label="小学阶段 (1-6年级)">
-                  {GRADES_LIST.filter(g => g.section === 'primary').map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="初中阶段 (7-9年级)">
-                  {GRADES_LIST.filter(g => g.section === 'middle').map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="高中阶段 (高一至高三)">
-                  {GRADES_LIST.filter(g => g.section === 'high').map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </optgroup>
-              </select>
+              <div className="flex gap-1.5">
+                <select
+                  value={currentGradeId}
+                  onChange={(e) => {
+                    onSelectGrade(e.target.value as GradeId);
+                    setMenuOpen(false);
+                  }}
+                  className="flex-1 appearance-none bg-white border border-[#DDD7CD] hover:border-[#B83A2D] text-[#24292E] text-xs font-medium py-2 pl-3 pr-7 rounded-lg cursor-pointer focus:outline-none focus:border-[#B83A2D] transition-colors"
+                >
+                  <optgroup label="小学阶段 (1-6年级)">
+                    {GRADES_LIST.filter(g => g.section === 'primary').map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="初中阶段 (7-9年级)">
+                    {GRADES_LIST.filter(g => g.section === 'middle').map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="高中阶段 (高一至高三)">
+                    {GRADES_LIST.filter(g => g.section === 'high').map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <select
+                  value={currentSemester}
+                  onChange={(e) => {
+                    onSelectSemester(e.target.value as '上册' | '下册');
+                    setMenuOpen(false);
+                  }}
+                  className="appearance-none bg-white border border-[#DDD7CD] hover:border-[#B83A2D] text-[#24292E] text-xs font-medium py-2 pl-3 pr-7 rounded-lg cursor-pointer focus:outline-none focus:border-[#B83A2D] transition-colors"
+                >
+                  <option value="上册">上册</option>
+                  <option value="下册">下册</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>

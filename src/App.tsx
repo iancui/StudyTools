@@ -23,11 +23,12 @@ import { useDetailedProgressSync } from './hooks/useDetailedProgressSync';
 import { useTextbookLessons, useTextbookLessonContent, useTextbookMultiLessonsContent } from './hooks/useTextbook';
 import { LessonSelector } from './components/LessonSelector';
 import { LessonNav } from './components/LessonNav';
-import { GradeSemesterSelector } from './components/GradeSemesterSelector';
 import { PhotoReview } from './components/PhotoReview';
 import type { ReviewScope } from './components/ReviewMode';
 import { midtermLessonIds, finalLessonIds } from './utils/reviewAlgorithm';
-import type { Semester } from './components/GradeSemesterSelector';
+// 工单 18.5: Semester 类型不再从 GradeSemesterSelector 导入, 改为内联
+// 类型别名 (首页不再使用独立选择器, 学期改为 TopBar 紧凑切换).
+type Semester = '上册' | '下册';
 
 function AppContent() {
   const { isAuthenticated, isLoading, user, logout, accessToken } = useAuth();
@@ -42,8 +43,9 @@ function AppContent() {
   // 工单 06: 教材课程选择 (三年级上册第 1~5 课)
   // null 表示未选择课程, 走原 curriculum 本地数据
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
-  // 工单 14: 学期选择 (首页可直接选年级 + 学期). 默认 "上册".
-  const [selectedSemester, setSelectedSemester] = useState<Semester>('上册');
+  // 工单 18.5: selectedSemester 不再使用本地 useState, 改为长期保存
+  // 在 UserProgress (localStorage). 登录后从该用户专属 localStorage 恢复,
+  // 不会每次进首页都要求重新选择. 切换时只更新 progress, 不动其他进度数据.
 
   // 工单 13: 复习范围选择.
   // - current_lesson: 只复习当前正在学习的课程
@@ -76,8 +78,10 @@ function AppContent() {
 
   // 工单 06: 三年级时加载教材课程列表, 切换年级时清空课程选择
   // 工单 14: 新增学期参数, 首页选年级+学期后自动加载对应课程列表.
+  // 工单 18.5: selectedSemester 从 progress 读取 (长期配置), 不再是
+  //            本地 useState, 登录后从 localStorage 恢复.
   const { lessons: textbookLessons, loading: lessonsLoading, error: lessonsError } =
-    useTextbookLessons(progress.selectedGrade, selectedSemester);
+    useTextbookLessons(progress.selectedGrade, progress.selectedSemester);
   const { data: lessonContent, loading: contentLoading, error: contentError } =
     useTextbookLessonContent(selectedLessonId);
 
@@ -101,10 +105,11 @@ function AppContent() {
   // 只有需要多课数据时才启用 hook. current_lesson 复用单课数据.
   const reviewMulti = useTextbookMultiLessonsContent(reviewLessonIds);
 
-  // 切换年级时重置课程选择 (避免上一个年级的 lessonId 残留)
+  // 工单 18.5: 切换年级或学期时重置课程选择 (避免上一个年级/学期的
+  // lessonId 残留, 显示旧课程). 不清空任何学习进度数据.
   useEffect(() => {
     setSelectedLessonId(null);
-  }, [progress.selectedGrade]);
+  }, [progress.selectedGrade, progress.selectedSemester]);
 
   // Sync progress changes to localStorage and check for badge updates
   useEffect(() => {
@@ -134,7 +139,9 @@ function AppContent() {
   // Grade selection handler
   const handleSelectGrade = (gradeId: GradeId) => {
     stopSpeech();
-    // 工单 14: 切换年级/学期时清空已选课程, 避免遗留选中旧课程
+    // 工单 14/18.5: 切换年级时清空已选课程, 避免遗留选中旧课程.
+    // 工单 18.5: 只更新 progress.selectedGrade, 不动其他进度数据
+    // (masteredCharacterIds / inkDrops / streakDays 等保持不变).
     setSelectedLessonId(null);
     setProgress(prev => ({
       ...prev,
@@ -142,11 +149,14 @@ function AppContent() {
     }));
   };
 
-  // 工单 14: 切换学期时也清空已选课程
+  // 工单 14/18.5: 切换学期时也清空已选课程, 并写入 progress (长期保存).
   const handleSelectSemester = (s: Semester) => {
     stopSpeech();
     setSelectedLessonId(null);
-    setSelectedSemester(s);
+    setProgress(prev => ({
+      ...prev,
+      selectedSemester: s
+    }));
   };
 
   // Check in handler
@@ -362,11 +372,14 @@ function AppContent() {
       {/* Universal Top Bar */}
       <TopBar
         currentGradeId={progress.selectedGrade}
+        // 工单 18.5: 学期属于长期配置, 与年级一起在 TopBar 紧凑切换.
+        currentSemester={progress.selectedSemester}
         activeTab={activeTab}
         learningMode={learningMode}
         inkDrops={progress.inkDrops}
         isCheckedInToday={isCheckedInToday}
         onSelectGrade={handleSelectGrade}
+        onSelectSemester={handleSelectSemester}
         onSelectTab={(tab) => {
           setActiveTab(tab);
           setLearningMode('learn');
@@ -389,24 +402,12 @@ function AppContent() {
                 墨韵中文
               </h1>
               <p className="text-sm text-[#57606A]">今天学什么？</p>
+              {/* 工单 18.5: 首页只展示当前年级/学期 (只读), 不可修改.
+                  修改入口在 TopBar, 避免每次进首页都要重新选择. */}
+              <p className="text-xs text-[#8C8273] mt-1">
+                当前课程：{GRADES_LIST.find(g => g.id === progress.selectedGrade)?.name ?? ''} · {progress.selectedSemester}
+              </p>
             </div>
-
-            {/* 工单 14: 首页直接选年级 + 学期 + 课程. 不只针对三年级写死 UI. */}
-            <GradeSemesterSelector
-              gradeId={progress.selectedGrade}
-              semester={selectedSemester}
-              lessons={textbookLessons}
-              lessonsLoading={lessonsLoading}
-              lessonsError={lessonsError}
-              selectedLessonId={selectedLessonId}
-              onSelectGrade={handleSelectGrade}
-              onSelectSemester={handleSelectSemester}
-              onSelectLesson={setSelectedLessonId}
-              onEnterLearn={() => {
-                setActiveTab('character');
-                setLearningMode('learn');
-              }}
-            />
 
             {/* 3 个入口按钮 */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

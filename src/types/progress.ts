@@ -87,6 +87,10 @@ export interface ExamRecord {
 
 export interface UserProgress {
   selectedGrade: GradeId;
+  // 工单 18.5: 学期属于长期学习配置, 与 selectedGrade 一起保存到
+  // localStorage (UserProgress). 不新增数据库 schema, 不新增 API.
+  // 默认 "上册", 登录后从 localStorage 恢复.
+  selectedSemester: '上册' | '下册';
   inkDrops: number;
   streakDays: number;
   lastCheckInDate: string;
