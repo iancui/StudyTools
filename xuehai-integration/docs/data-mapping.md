@@ -2,7 +2,7 @@
 
 | StudyTools 旧表 | 学海新表 | 映射说明 |
 |---|---|---|
-| users | 不建表 | 使用学海 users.id VARCHAR(36)，按 username/email 对账；绝不迁移旧用户主键 |
+| users | 不建表 | 使用学海 users.id VARCHAR(36)，按 username 对账（旧 StudyTools users 表没有 email 字段）；绝不迁移旧用户主键 |
 | user_progress | chinese_user_progress | grade、semester、textbook_version、current_lesson_id、total_study_minutes；旧 ink_drops/streak_days/checkin 不导入 |
 | 新增学习计时 | chinese_study_sessions + chinese_user_progress.total_study_minutes | session_id 唯一；重复提交不重复累计分钟 |
 | localStorage.previewedItemIds | chinese_preview_records | 从用户显式导出的 per-user localStorage JSON 读取 previewedItemIds 后按 guide_id 导入；旧 DB 只有 preview_count，无具体 ID |
@@ -18,4 +18,4 @@
 
 旧表主键和 user_id 为旧库自增数值类型，学海 user_id 是 VARCHAR(36)，不可直接复制。旧 schema 含破坏性删表定义，不能执行于学海。所有目标表无外键，使用 VARCHAR(64) 业务 ID 和 CREATE TABLE IF NOT EXISTS。
 
-迁移脚本必须先备份旧库；以旧 username/email 对账学海 users；无唯一匹配、多个匹配或目标用户不存在时跳过并输出审计，不创建学海用户。导入先 dry-run，只报告计划条数与冲突；正式导入用事务、唯一键 upsert、每批记录 checkpoint，避免重复导入和重复积分。
+迁移脚本必须先备份旧库；以旧 username 对账学海 users；无唯一匹配、多个匹配或目标用户不存在时跳过并输出审计，不创建学海用户。导入先 dry-run，只报告计划条数与冲突；正式导入用事务、唯一键 upsert、每批记录 checkpoint，避免重复导入和重复积分。
