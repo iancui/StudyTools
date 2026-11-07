@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ChineseStorage } from '../db/chineseStorage.ts';
 import { CHINESE_EXAM_BANK } from '../data/chineseExamBank.ts';
 
@@ -72,7 +73,7 @@ export class ChineseService {
       await ChineseStorage.saveWrongQuestion(userId, {
         questionId: question.id,
         questionType: question.category,
-        requestId: `exam:${stableHash(requestId).toString(16)}:${question.id.slice(0, 40)}`,
+        requestId: `exam:${createHash('sha256').update(requestId).digest('hex').slice(0, 16)}:${question.id.slice(0, 40)}`,
         questionContent: JSON.stringify({
           question: question.question,
           options: question.options,
