@@ -17,6 +17,7 @@
 | GET | /api/chinese/sentences | 句子进度列表 | 无 |
 | PUT | /api/chinese/sentences | 批量保存 completedIds | 无 |
 | POST | /api/chinese/sentences/practice | 记录一次句子练习 | 无 |
+| POST | /api/chinese/study-sessions | 保存一次学习计时会话；sessionId 幂等，单次最多 240 分钟 | 无 |
 | GET | /api/chinese/previews | 已完成预习记录 | 无 |
 | POST | /api/chinese/previews | 标记导读完成 | 无 |
 | GET | /api/chinese/wrong-questions | 错题列表 | 无 |
