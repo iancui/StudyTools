@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
 import {
@@ -76,10 +76,29 @@ export function ChineseCharactersView({ctx}:ViewProps){
   </Frame>;
 }
 
+function HandwritingPad(){
+  const canvasRef=useRef<HTMLCanvasElement|null>(null),drawing=useRef(false);
+  const paintGrid=()=>{
+    const canvas=canvasRef.current;if(!canvas)return;
+    const ratio=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+    canvas.width=Math.max(1,Math.floor(rect.width*ratio));canvas.height=Math.floor(300*ratio);
+    const context=canvas.getContext('2d');if(!context)return;context.scale(ratio,ratio);
+    const width=rect.width,height=300;context.fillStyle='#fff';context.fillRect(0,0,width,height);
+    context.strokeStyle='#d9e5f4';context.lineWidth=1;context.setLineDash([5,5]);
+    context.strokeRect(1,1,width-2,height-2);context.beginPath();context.moveTo(width/2,0);context.lineTo(width/2,height);context.moveTo(0,height/2);context.lineTo(width,height/2);context.moveTo(0,0);context.lineTo(width,height);context.moveTo(width,0);context.lineTo(0,height);context.stroke();context.setLineDash([]);
+  };
+  useEffect(()=>{paintGrid();const onResize=()=>paintGrid();window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize);},[]);
+  const point=(event:React.PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return {x:event.clientX-rect.left,y:event.clientY-rect.top};};
+  const down=(event:React.PointerEvent<HTMLCanvasElement>)=>{const canvas=event.currentTarget,ctx=canvas.getContext('2d');if(!ctx)return;canvas.setPointerCapture(event.pointerId);const p=point(event);drawing.current=true;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29466F';};
+  const move=(event:React.PointerEvent<HTMLCanvasElement>)=>{if(!drawing.current)return;const ctx=event.currentTarget.getContext('2d');if(!ctx)return;const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke();};
+  const up=()=>{drawing.current=false;};
+  return <div className="space-y-2"><canvas ref={canvasRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} className="h-[300px] w-full touch-none rounded-xl border border-[#D9E5F4] bg-white"/><div className="flex items-center justify-between"><span className="text-xs text-[#7890B0]">在米字格中书写；笔迹仅在当前页面临时显示。</span><button type="button" onClick={paintGrid} className="rounded-lg border px-3 py-1.5 text-sm">清空画布</button></div></div>;
+}
+
 export function ChineseCharacterPracticeView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[eventId,setEventId]=useState('');const items=CHARACTERS_DATA[grade]||[];const item=items[index%Math.max(items.length,1)];
   const submit=async()=>{if(!item)return;const ok=answer.trim()===item.char;setBusy(true);try{const key=eventId||crypto.randomUUID();setEventId(key);await recordChineseCharacterPractice(item.id,ok?'correct':'wrong',key);if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',requestId:key,questionContent:`目标字 ${item.char}，笔顺：${item.strokeOrderHint}`});setEventId('');setNotice(ok?'自我检查通过，练习已记录。':`目标字是「${item.char}」，请对照笔顺提示再练。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
-  return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。"><GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');}}/>{item&&<Card title={item.char} meta={item.pinyin}><p>{item.strokeOrderHint}</p><div className="flex flex-wrap gap-2">{(item.strokeOrderSteps||[]).map((s,i)=><span key={i} className="rounded-lg border bg-[#F7FAFF] px-3 py-2">第{i+1}笔：{s}</span>)}</div><label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><div className="flex gap-2"><button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button><button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');}} className="rounded-lg border px-3 py-2">下一个</button></div>{notice&&<Notice>{notice}</Notice>}</Card>}</Frame>;
+  return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。"><GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');}}/>{item&&<Card title={item.char} meta={item.pinyin}><p>{item.strokeOrderHint}</p><HandwritingPad/><div className="flex flex-wrap gap-2">{(item.strokeOrderSteps||[]).map((s,i)=><span key={i} className="rounded-lg border bg-[#F7FAFF] px-3 py-2">第{i+1}笔：{s}</span>)}</div><label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><div className="flex gap-2"><button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button><button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');}} className="rounded-lg border px-3 py-2">下一个</button></div>{notice&&<Notice>{notice}</Notice>}</Card>}</Frame>;
 }
 
 export function ChineseWordsView({ctx}:ViewProps){
