@@ -216,7 +216,7 @@ export class ChineseStorage {
 
   static async listExams(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, duration_seconds, answers_json, created_at FROM chinese_exam_records WHERE user_id=? ORDER BY created_at DESC',
+      'SELECT id, lesson_id, grade, score, passed, total_questions, correct_questions, duration_seconds, answers_json, created_at FROM chinese_exam_records WHERE user_id=? ORDER BY created_at DESC',
       [userId],
     );
     return rows;
