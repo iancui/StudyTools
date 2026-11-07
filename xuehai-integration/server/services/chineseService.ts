@@ -1,5 +1,6 @@
 import { db } from '../db/storage.ts';
 import { ChineseStorage } from '../db/chineseStorage.ts';
+import { CHINESE_EXAM_BANK } from '../data/chineseExamBank.ts';
 
 export class ChineseService {
   static getProgress(userId: string) { return ChineseStorage.getProgress(userId); }
@@ -18,14 +19,46 @@ export class ChineseService {
   static saveWrong(userId: string, body: Record<string, unknown>) { return ChineseStorage.saveWrongQuestion(userId, body); }
   static listExams(userId: string) { return ChineseStorage.listExams(userId); }
   static async createExam(userId: string, body: Record<string, unknown>) {
-    const exam = await ChineseStorage.createExam(userId, body);
-    let pointsAward: { awarded: boolean; amount: number; balance: number; todayEarned: number; reason?: string } = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '待服务端题库校验' };
-    // 安全保护：当前题库仍在前端快照，客户端成绩不可作为积分依据。
-    // 待服务端接入可信题库并独立核对答案后，再开放达标奖励。
-    if (exam.verified && exam.passed && exam.lessonId) {
-      pointsAward = await db.awardPoints(userId, `CHINESE_QUIZ:${exam.lessonId}`, `chinese:quiz:${exam.lessonId}:first`, 1, '语文单课测验达标');
+    const grade = String(body.grade || '');
+    const bank = CHINESE_EXAM_BANK[grade as keyof typeof CHINESE_EXAM_BANK];
+    const submitted = body.answers && typeof body.answers === 'object' && !Array.isArray(body.answers)
+      ? body.answers as Record<string, unknown>
+      : null;
+    const requestId = String(body.requestId || '');
+    if (!bank || !submitted || !requestId || requestId.length > 64) {
+      throw Object.assign(new Error('测验信息不完整，请重新开始'), { status: 400 });
     }
-    return { ...exam, pointsAward };
+    const stableHash = (value: string) => {
+      let hash = 2166136261;
+      for (let i = 0; i < value.length; i += 1) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    };
+    const expected = [...bank].sort((a, b) => stableHash(a.id) - stableHash(b.id)).slice(0, 10);
+    const expectedIds = expected.map((question) => question.id).sort();
+    const submittedIds = Object.keys(submitted).sort();
+    if (expectedIds.length !== submittedIds.length || expectedIds.some((id, index) => id !== submittedIds[index])) {
+      throw Object.assign(new Error('测验题目已变化，请刷新后重新作答'), { status: 400 });
+    }
+    let correct = 0;
+    for (const question of expected) {
+      const canonical = question.type === 'choice' && typeof question.correctAnswer === 'number'
+        ? question.options?.[question.correctAnswer]
+        : String(question.correctAnswer);
+      if (String(submitted[question.id] ?? '').trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) correct += 1;
+    }
+    const total = expected.length;
+    const score = total ? Math.round((correct / total) * 100) : 0;
+    // 旧课程库只有年级题目，没有可核验的 lessonId；因此本次测验先核验并保存，
+    // 但不发积分。待接入真实教材课次映射后，才能按课次 sourceKey 发奖。
+    const exam = await ChineseStorage.createExam(userId, {
+      ...body, lessonId: null, requestId, totalQuestions: total,
+      correctQuestions: correct, score, verified: true,
+    });
+    const pointsAward = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '尚未关联正式课次，暂不发放积分' };
+    return { ...exam, grade, pointsAward };
   }
   static listEssays(userId: string) { return ChineseStorage.listEssays(userId); }
   static createEssay(userId: string, body: Record<string, unknown>) { return ChineseStorage.createEssay(userId, body); }
