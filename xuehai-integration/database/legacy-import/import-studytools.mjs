@@ -162,7 +162,7 @@ async function importUser(oldUser) {
     // supplied an export file. They are merged with DB rows, never used for identity.
     const insertLocalIds = async (values, table, column, stateColumn, doneColumn) => {
       if (!Array.isArray(values)) return;
-      for (const value of [...new Set(values.filter((item) => typeof item === 'string' && item.length > 0))]) {
+      for (const value of [...new Set(values.filter((item) => typeof item === 'string' && item.length > 0 && item.length <= 100))]) {
         await connection.execute(
           `INSERT INTO ${table} (id,user_id,${column},${stateColumn},${doneColumn})
            VALUES (?,?,?,?,CURRENT_TIMESTAMP)
