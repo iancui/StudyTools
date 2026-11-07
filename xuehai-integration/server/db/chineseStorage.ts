@@ -20,19 +20,19 @@ export class ChineseStorage {
   }
 
   static async saveProgress(userId: string, body: Record<string, unknown>) {
-    const grade = typeof body.grade === 'string' ? body.grade : 'g3';
+    const gradeValue = typeof body.grade === 'string' ? body.grade : 'g3';
+    const grade = /^g([1-9]|1[0-2])$/.test(gradeValue) ? gradeValue : 'g3';
     const semester = body.semester === 's2' ? 's2' : 's1';
-    const version = typeof body.textbookVersion === 'string' ? body.textbookVersion : 'default';
-    const lessonId = typeof body.currentLessonId === 'string' ? body.currentLessonId : null;
-    const minutes = Math.max(0, Math.floor(Number(body.studyMinutesDelta) || 0));
+    const version = typeof body.textbookVersion === 'string' ? body.textbookVersion.slice(0, 64) : 'default';
+    const lessonId = typeof body.currentLessonId === 'string' ? body.currentLessonId.slice(0, 64) : null;
+    // 学习分钟只能通过带 sessionId 的 recordStudySession 写入，不能由配置请求伪造。
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_user_progress
-       (user_id, grade, semester, textbook_version, current_lesson_id, total_study_minutes)
-       VALUES (?, ?, ?, ?, ?, ?)
+       (user_id, grade, semester, textbook_version, current_lesson_id)
+       VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE grade=VALUES(grade), semester=VALUES(semester),
-       textbook_version=VALUES(textbook_version), current_lesson_id=VALUES(current_lesson_id),
-       total_study_minutes=total_study_minutes + VALUES(total_study_minutes)`,
-      [userId, grade, semester, version, lessonId, minutes],
+       textbook_version=VALUES(textbook_version), current_lesson_id=VALUES(current_lesson_id)`,
+      [userId, grade, semester, version, lessonId],
     );
     return this.getProgress(userId);
   }
