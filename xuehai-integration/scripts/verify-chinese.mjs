@@ -20,7 +20,7 @@ const serverSource = await read('server/data/chineseExamBank.ts');
 const serverBody = serverSource
   .replace(/^\/\*\*[\s\S]*?\*\/\s*/, '')
   .replace(/^export const CHINESE_EXAM_BANK\s*=\s*/, '')
-  .replace(/;\s*$/, '');
+  .replace(/\s+as const;\s*$/, '');
 const serverBank = JSON.parse(serverBody);
 const grades = Object.keys(serverBank);
 assert.equal(grades.length, 12, '服务端题库必须覆盖 12 个年级');
