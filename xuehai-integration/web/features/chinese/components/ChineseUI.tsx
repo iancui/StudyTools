@@ -20,13 +20,12 @@ export function ChineseFrame({ctx,title,subtitle,children}:{ctx:ChineseViewConte
   </section>;
 }
 
-export function ChineseGradePicker({value,onChange}:{value:GradeId;onChange:(value:GradeId)=>void}) {
-  return <label className="flex items-center gap-2 text-sm text-[#607797]">学习年级
+export function ChineseGradePicker({value,onChange,error}:{value:GradeId;onChange:(value:GradeId)=>void;error?:string}) {
+  return <div className="space-y-1"><label className="flex items-center gap-2 text-sm text-[#607797]">学习年级
     <select value={value} onChange={e=>onChange(e.target.value as GradeId)} className="rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-[#29466F]">
       {GRADES_LIST.map(grade=><option key={grade.id} value={grade.id}>{grade.name}</option>)}
     </select>
-  </label>;
-}
+  </label>{error&&<p role="alert" className="text-xs text-rose-700">{error}</p>}</div>;
 
 export function ChineseNotice({children,error=false}:{children:ReactNode;error?:boolean}) {
   return <p role="status" aria-live="polite" className={`rounded-xl px-3 py-2 text-sm ${error?'bg-rose-50 text-rose-700':'bg-blue-50 text-blue-700'}`}>{children}</p>;
