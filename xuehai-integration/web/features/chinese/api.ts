@@ -57,6 +57,7 @@ export interface ChineseWrongQuestionDTO {
 export interface ChineseExamRecordDTO {
   id: string;
   lesson_id: string | null;
+  grade?: string;
   score: number;
   passed: boolean | number;
   total_questions: number;
