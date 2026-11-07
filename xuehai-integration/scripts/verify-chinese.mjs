@@ -39,6 +39,9 @@ for (const grade of grades) {
     assert.ok(!Object.hasOwn(question, 'explanation'), question.id + ' 提前暴露解析');
     const trusted = serverById.get(question.id);
     assert.ok(trusted, question.id + ' 服务端缺少对应题目');
+    assert.ok(Object.hasOwn(trusted, 'correctAnswer'), question.id + ' 服务端缺少可信标准答案');
+    assert.ok(Object.hasOwn(trusted, 'explanation'), question.id + ' 服务端缺少题目解析');
+    assert.doesNotMatch(String(trusted.explanation || ''), /(?:选项\\s*)?[A-D]\\s*(?:项|为|是)/, question.id + ' 解析不应使用 A/B/C/D 选项指代');
     assert.deepEqual(question.options || [], (trusted.options || []).map((value) => String(value).replace(/^[A-D]\.\s*/, '')), question.id + ' 选项不一致');
     if (question.options) {
       assert.equal(new Set(question.options).size, question.options.length, question.id + ' 存在重复选项');
@@ -53,6 +56,8 @@ for (const grade of grades) {
 }
 assert.equal(questionCount, 175, '题库总题量应为 175');
 
+const curriculumSource = await read('web/features/chinese/data/curriculum.data.ts');
+assert.doesNotMatch(curriculumSource, /EXAMS_DATA|correctAnswer|DEFAULT_CURRICULUM/, '浏览器课程模块不应携带可信答案数据');
 const curriculum = JSON.parse(await read('web/features/chinese/data/curriculum.json'));
 assert.equal(curriculum.grades.length, 12, '课程 JSON 必须覆盖 12 个年级');
 for (const grade of curriculum.grades) {
