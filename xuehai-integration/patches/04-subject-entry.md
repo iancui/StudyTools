@@ -19,14 +19,11 @@ export type SubjectKey = 'english' | 'math' | 'chinese';
 在数学卡片之后、卡片列表结束之前插入第三张卡片；外层 className/组件结构沿用相邻卡片：
 
 ```tsx
-<button
-  type="button"
+<SubjectEntryCard
+  title="语文"
+  subtitle="生字 · 词语 · 句子 · 作文"
   onClick={() => navigate('/chinese')}
-  className="group rounded-2xl border border-[#E7EEF8] bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
->
-  <div className="text-xl font-semibold text-[#29466F]">语文</div>
-  <p className="mt-2 text-sm text-[#607797]">生字 · 词语 · 句子 · 作文</p>
-</button>
+/>
 ```
 
 ## C. 顶栏与用户身份
