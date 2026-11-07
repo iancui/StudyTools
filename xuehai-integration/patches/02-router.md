@@ -1,0 +1,55 @@
+# Patch 02 — 注册语文路由
+
+**目标文件：** `apps/web/src/router/routes.tsx`
+
+1. 在 `RouteLayout` 联合类型增加 `'chinese'`。
+2. 在 `getRouteSubject(path)` 中增加：
+
+```ts
+if (path === '/chinese' || path.startsWith('/chinese/')) return 'chinese';
+```
+
+3. 从本集成包的页面命名导出入口导入（复制后位于学海目标路径）：
+
+```ts
+import { ChineseHomeView } from '../features/chinese/views/ChineseHomeView.tsx';
+import { ChineseCharactersView } from '../features/chinese/views/ChineseCharactersView.tsx';
+import { ChineseCharacterPracticeView } from '../features/chinese/views/ChineseCharacterPracticeView.tsx';
+import { ChineseWordsView } from '../features/chinese/views/ChineseWordsView.tsx';
+import { ChineseSentencesView } from '../features/chinese/views/ChineseSentencesView.tsx';
+import { ChineseEssaysView } from '../features/chinese/views/ChineseEssaysView.tsx';
+import { ChinesePreviewView } from '../features/chinese/views/ChinesePreviewView.tsx';
+import { ChineseReviewView } from '../features/chinese/views/ChineseReviewView.tsx';
+import { ChineseExamView } from '../features/chinese/views/ChineseExamView.tsx';
+import { ChineseArchiveView } from '../features/chinese/views/ChineseArchiveView.tsx';
+import { ChineseSettingsView } from '../features/chinese/views/ChineseSettingsView.tsx';
+```
+
+4. 在 shared/admin 判断之后、英语兜底之前增加：
+
+```ts
+if (path === '/chinese' || path.startsWith('/chinese/')) {
+  return { layout: 'chinese', subject: 'chinese', element: renderChineseView(path, ctx) };
+}
+```
+
+5. 在现有 render helper 附近增加：
+
+```tsx
+function renderChineseView(path: string, ctx: RouteContext): React.ReactNode {
+  if (path === '/chinese' || path === '/chinese/') return <ChineseHomeView ctx={ctx} />;
+  if (path === '/chinese/characters') return <ChineseCharactersView ctx={ctx} />;
+  if (path === '/chinese/characters/practice') return <ChineseCharacterPracticeView ctx={ctx} />;
+  if (path === '/chinese/words') return <ChineseWordsView ctx={ctx} />;
+  if (path === '/chinese/sentences') return <ChineseSentencesView ctx={ctx} />;
+  if (path === '/chinese/essays') return <ChineseEssaysView ctx={ctx} />;
+  if (path === '/chinese/preview') return <ChinesePreviewView ctx={ctx} />;
+  if (path === '/chinese/review') return <ChineseReviewView ctx={ctx} />;
+  if (path === '/chinese/exam') return <ChineseExamView ctx={ctx} />;
+  if (path === '/chinese/archive') return <ChineseArchiveView ctx={ctx} />;
+  if (path === '/chinese/settings') return <ChineseSettingsView ctx={ctx} />;
+  return <ChineseHomeView ctx={ctx} />;
+}
+```
+
+**说明：** 现有 RouteContext 的真实类型/变量以目标文件为准；不要重写其他路由分支。页面统一通过 `ctx.navigate` 跳转。
