@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
-import { speakChinese, stopChineseSpeech } from '../speech.ts';
+import { speakChinese } from '../speech.ts';
+import { ChineseFrame as Frame, ChineseGradePicker as GradePicker, ChineseNotice as Notice, ChineseCard as Card, ChineseSpeakButton as SpeakButton, ChineseSearch as Search, ChineseHandwritingPad as HandwritingPad } from '../components/ChineseUI.tsx';
 import { getReviewSchedule, sortReviewQueue } from '../reviewAlgorithm.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
 import { CHINESE_EXAM_BANK } from '../data/examBank.ts';
@@ -13,35 +14,7 @@ import {
 } from '../api.ts';
 
 interface ViewProps { ctx: { navigate: (route: string) => void } }
-function Frame({ctx,title,subtitle,children}:{ctx:ViewProps['ctx'];title:string;subtitle:string;children?:ReactNode}) {
-  useEffect(()=>()=>stopChineseSpeech(),[]);
-  return <section className="space-y-5">
-    <header className="rounded-3xl border border-[#E7EEF8] bg-white p-6 shadow-sm">
-      <p className="text-sm text-[#7890B0]">CHINESE · 语文学习</p><h1 className="mt-2 text-2xl font-bold">{title}</h1><p className="mt-2 text-sm text-[#607797]">{subtitle}</p>
-    </header>
-    {children}<button type="button" onClick={()=>ctx.navigate('/chinese')} className="text-sm text-blue-700">返回语文首页</button>
-  </section>;
-}
 function useGrade(){const [grade,setGrade]=useState<GradeId>('g3');useEffect(()=>{let live=true;void getChineseProgress().then((p:any)=>{if(live&&p&&GRADES_LIST.some(x=>x.id===p.grade))setGrade(p.grade);}).catch(()=>{});return()=>{live=false;};},[]);return {grade,setGrade};}
-function GradePicker({value,onChange}:{value:GradeId;onChange:(v:GradeId)=>void}){
-  return <label className="flex items-center gap-2 text-sm text-[#607797]">学习年级
-    <select value={value} onChange={e=>onChange(e.target.value as GradeId)} className="rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-[#29466F]">
-      {GRADES_LIST.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
-    </select>
-  </label>;
-}
-function Notice({children,error=false}:{children:ReactNode;error?:boolean}){
-  return <p role="status" className={`rounded-xl px-3 py-2 text-sm ${error?'bg-rose-50 text-rose-700':'bg-blue-50 text-blue-700'}`}>{children}</p>;
-}
-function Card({title,meta,children}:{title:string;meta?:string;children?:ReactNode}){
-  return <article className="rounded-2xl border border-[#E7EEF8] bg-white p-4 shadow-sm"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-semibold text-[#29466F]">{title}</h2>{meta&&<span className="text-xs text-[#7890B0]">{meta}</span>}</div>{children&&<div className="mt-3 space-y-2 text-sm text-[#526B8D]">{children}</div>}</article>;
-}
-function SpeakButton({text,label='朗读'}:{text:string;label?:string}){
-  return <button type="button" onClick={()=>speakChinese(text)} className="rounded-lg border border-[#D9E5F4] px-3 py-1.5 text-xs text-[#29466F] hover:bg-[#F7FAFF]">{label}</button>;
-}
-function Search({value,onChange,placeholder}:{value:string;onChange:(v:string)=>void;placeholder:string}){
-  return <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-sm sm:max-w-xs"/>;
-}
 function useRemoteIds(kind:'characters'|'words'|'sentences'){
   const [ids,setIds]=useState<string[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
   useEffect(()=>{let live=true;const load=kind==='characters'?getChineseCharacters:kind==='words'?getChineseWords:getChineseSentences;
@@ -89,25 +62,6 @@ export function ChineseCharactersView({ctx}:ViewProps){
     <div className="grid gap-3 lg:grid-cols-[1fr_0.9fr]"><div className="grid gap-2 sm:grid-cols-2">{filtered.map(x=><button key={x.id} onClick={()=>{setSelected(x);setAnswer('');}} className={`rounded-2xl border p-3 text-left ${selected?.id===x.id?'border-blue-400 bg-blue-50':'border-[#E7EEF8] bg-white'}`}><strong className="text-2xl">{x.char}</strong><span className="ml-3 text-sm">{x.pinyin}</span><span className="mt-1 block text-xs text-[#7890B0]">{x.meanings[0]}</span></button>)}</div>
     {selected?<Card title={selected.char} meta={selected.pinyin}><p>部首：{selected.radical} · 结构：{selected.structure} · {selected.strokeCount}画</p><div className="flex gap-2"><SpeakButton text={selected.char} label="朗读汉字"/><SpeakButton text={selected.pinyin} label="朗读拼音"/><SpeakButton text={selected.exampleSentence} label="朗读例句"/></div><p>{selected.meanings.join('；')}</p><p>组词：{selected.phrases.join('、')}</p><p>例句：{selected.exampleSentence}</p>{selected.mnemonic&&<p>识记提示：{selected.mnemonic}</p>}{selected.phoneticTrap&&<p className="rounded-lg bg-amber-50 p-2 text-amber-800">{selected.phoneticTrap.label}：{selected.phoneticTrap.tip}</p>}<button onClick={()=>void toggle()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">{remote.ids.includes(selected.id)?'取消掌握':'标记已掌握'}</button><button onClick={()=>ctx.navigate('/chinese/characters/practice')} className="ml-2 rounded-lg border px-3 py-2">笔顺练习</button><label className="block">看拼音写汉字<input value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={selected.pinyin} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><button disabled={busy||!answer.trim()} onClick={()=>void practice()} className="rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-50">提交练习</button></Card>:<div className="rounded-2xl border border-dashed p-8 text-center text-sm text-[#7890B0]">选择一个汉字查看讲解与练习。</div>}</div>
   </Frame>;
-}
-
-function HandwritingPad(){
-  const canvasRef=useRef<HTMLCanvasElement|null>(null),drawing=useRef(false);
-  const paintGrid=()=>{
-    const canvas=canvasRef.current;if(!canvas)return;
-    const ratio=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();
-    canvas.width=Math.max(1,Math.floor(rect.width*ratio));canvas.height=Math.floor(300*ratio);
-    const context=canvas.getContext('2d');if(!context)return;context.scale(ratio,ratio);
-    const width=rect.width,height=300;context.fillStyle='#fff';context.fillRect(0,0,width,height);
-    context.strokeStyle='#d9e5f4';context.lineWidth=1;context.setLineDash([5,5]);
-    context.strokeRect(1,1,width-2,height-2);context.beginPath();context.moveTo(width/2,0);context.lineTo(width/2,height);context.moveTo(0,height/2);context.lineTo(width,height/2);context.moveTo(0,0);context.lineTo(width,height);context.moveTo(width,0);context.lineTo(0,height);context.stroke();context.setLineDash([]);
-  };
-  useEffect(()=>{paintGrid();const onResize=()=>paintGrid();window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize);},[]);
-  const point=(event:PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return {x:event.clientX-rect.left,y:event.clientY-rect.top};};
-  const down=(event:PointerEvent<HTMLCanvasElement>)=>{const canvas=event.currentTarget,ctx=canvas.getContext('2d');if(!ctx)return;canvas.setPointerCapture(event.pointerId);const p=point(event);drawing.current=true;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29466F';};
-  const move=(event:PointerEvent<HTMLCanvasElement>)=>{if(!drawing.current)return;const ctx=event.currentTarget.getContext('2d');if(!ctx)return;const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke();};
-  const up=()=>{drawing.current=false;};
-  return <div className="space-y-2"><canvas ref={canvasRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} className="h-[300px] w-full touch-none rounded-xl border border-[#D9E5F4] bg-white"/><div className="flex items-center justify-between"><span className="text-xs text-[#7890B0]">在米字格中书写；笔迹仅在当前页面临时显示。</span><button type="button" onClick={paintGrid} className="rounded-lg border px-3 py-1.5 text-sm">清空画布</button></div></div>;
 }
 
 export function ChineseCharacterPracticeView({ctx}:ViewProps){
