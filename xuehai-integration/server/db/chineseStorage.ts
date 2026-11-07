@@ -13,7 +13,7 @@ const resource = {
 export class ChineseStorage {
   static async getProgress(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT user_id, grade, semester, textbook_version, current_lesson_id, total_study_minutes, created_at, updated_at FROM chinese_user_progress WHERE user_id = ? LIMIT 1',
+      'SELECT grade, semester, textbook_version, current_lesson_id, total_study_minutes, created_at, updated_at FROM chinese_user_progress WHERE user_id = ? LIMIT 1',
       [userId],
     );
     return rows[0] || null;
@@ -40,7 +40,7 @@ export class ChineseStorage {
   static async listDetail(userId: string, kind: Kind) {
     const cfg = resource[kind];
     const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT * FROM ${cfg.table} WHERE user_id = ? ORDER BY updated_at DESC`,
+      `SELECT ${cfg.item}, ${cfg.state}, practice_count, correct_count, wrong_count, first_learned_at, last_practiced_at, ${cfg.doneAt}, updated_at FROM ${cfg.table} WHERE user_id = ? ORDER BY updated_at DESC`,
       [userId],
     );
     return rows;
@@ -98,7 +98,7 @@ export class ChineseStorage {
         );
       }
       const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT * FROM ${cfg.table} WHERE user_id=? AND ${cfg.item}=? LIMIT 1`,
+        `SELECT ${cfg.item}, ${cfg.state}, practice_count, correct_count, wrong_count, first_learned_at, last_practiced_at, ${cfg.doneAt}, updated_at FROM ${cfg.table} WHERE user_id=? AND ${cfg.item}=? LIMIT 1`,
         [userId, itemId],
       );
       await connection.commit();
@@ -169,7 +169,7 @@ export class ChineseStorage {
 
   static async listWrongQuestions(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM chinese_wrong_questions WHERE user_id=? ORDER BY last_wrong_at DESC',
+      'SELECT question_id, question_type, question_content, wrong_count, correct_count, is_resolved, first_wrong_at, last_wrong_at, resolved_at, created_at, updated_at FROM chinese_wrong_questions WHERE user_id=? ORDER BY last_wrong_at DESC',
       [userId],
     );
     return rows;
@@ -207,7 +207,7 @@ export class ChineseStorage {
 
   static async listExams(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM chinese_exam_records WHERE user_id=? ORDER BY created_at DESC',
+      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, duration_seconds, answers_json, created_at FROM chinese_exam_records WHERE user_id=? ORDER BY created_at DESC',
       [userId],
     );
     return rows;
@@ -229,7 +229,7 @@ export class ChineseStorage {
       [randomUUID(),userId,lessonId,score,passed?1:0,total,correct,Math.max(0,Math.floor(Number(body.durationSeconds)||0)),JSON.stringify(body.answers ?? null),requestKey],
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
+      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, duration_seconds, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
       [userId, requestKey],
     );
     // The service has already verified every answer against the server-owned question bank.
@@ -238,7 +238,7 @@ export class ChineseStorage {
 
   static async listEssays(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM chinese_essay_records WHERE user_id=? ORDER BY created_at DESC',
+      'SELECT id, essay_id, title, prompt, content, word_count, score, feedback_json, status, created_at, updated_at FROM chinese_essay_records WHERE user_id=? ORDER BY created_at DESC',
       [userId],
     );
     return rows;
