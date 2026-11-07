@@ -220,21 +220,29 @@ export class ChineseStorage {
     const durationSeconds = Math.max(0, Math.min(86400, Math.floor(Number(body.durationSeconds) || 0)));
     const verified = body.verified === true;
     const passed = verified && score >= 70;
+    const gradeValue = typeof body.grade === 'string' ? body.grade : 'g3';
+    const grade = /^g([1-9]|1[0-2])$/.test(gradeValue) ? gradeValue : 'g3';
     const lessonId = typeof body.lessonId === 'string' ? body.lessonId.slice(0, 64) : null;
     const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
+    const answersJson = JSON.stringify(body.answers ?? null);
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_exam_records
-       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
-       VALUES (?,?,?,?,?,?,?,?,?,?)
+       (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),userId,lessonId,score,passed?1:0,total,correct,durationSeconds,JSON.stringify(body.answers ?? null),requestKey],
+      [randomUUID(),userId,lessonId,grade,score,passed?1:0,total,correct,durationSeconds,answersJson,requestKey],
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, duration_seconds, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
+      'SELECT id, lesson_id, grade, score, passed, total_questions, correct_questions, duration_seconds, answers_json, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
       [userId, requestKey],
     );
+    const saved = rows[0];
+    const savedAnswers = typeof saved?.answers_json === 'string' ? JSON.parse(saved.answers_json) : saved?.answers_json;
+    if (!saved || saved.grade !== grade || JSON.stringify(savedAnswers) !== answersJson) {
+      throw Object.assign(new Error('测验请求编号已使用，请重新开始测验'), { status: 409 });
+    }
     // The service has already verified every answer against the server-owned question bank.
-    return { ...(rows[0] || {}), lessonId, requestKey, verified, provisionalPassed: score >= 70, passed };
+    return { ...saved, lessonId, requestKey, verified, provisionalPassed: score >= 70, passed };
   }
 
   static async listEssays(userId: string) {
