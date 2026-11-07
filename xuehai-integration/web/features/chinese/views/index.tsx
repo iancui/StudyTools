@@ -367,6 +367,19 @@ export function ChinesePreviewView({ctx}:ViewProps){
   return <Frame ctx={ctx} title="课前预习" subtitle="按导读步骤了解背景、重点字词和思考问题；完成记录保存到学海。"><GradePicker value={grade} error={gradeError} onChange={v=>{void setGrade(v);setStep(0);setHints({});setNotice('');}}/>{guide?<Card title={guide.lessonTitle} meta={`第 ${Math.min(step+1,steps.length)} / ${steps.length} 步`}>{current&&<><h3 className="font-semibold">{current.title}</h3><p>{current.description}</p><ul className="list-disc pl-5">{current.keyPoints.map((x,i)=><li key={i}>{x}</li>)}</ul></>}<div className="flex gap-2"><button disabled={!step} onClick={()=>setStep(v=>v-1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">上一步</button><button disabled={step>=steps.length-1} onClick={()=>setStep(v=>v+1)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-40">下一步</button></div>{guide.questions.map((q,i)=><div key={i} className="rounded-xl bg-[#F7FAFF] p-3"><p className="font-medium">{q.question}</p><button onClick={()=>setHints(v=>({...v,[i]:!v[i]}))} className="mt-2 text-sm text-blue-700">{hints[i]?'隐藏提示':'查看思考提示'}</button>{hints[i]&&<p className="mt-2">{q.hint}</p>}</div>)}<button disabled={busy||completed.includes(guideId)} onClick={()=>void finish()} className="rounded-lg bg-[#29466F] px-4 py-2 text-white disabled:opacity-50">{completed.includes(guideId)?'已完成预习':busy?'保存中…':'完成本次预习'}</button></Card>:<Notice error>当前年级暂无预习导读内容。</Notice>}{notice&&<Notice>{notice}</Notice>}</Frame>;
 }
 
+function decodeWrongQuestion(raw:unknown){
+  if(typeof raw!=='string')return {question:String(raw||''),studentAnswer:'',correctAnswer:''};
+  try{
+    const value=JSON.parse(raw);
+    if(value&&typeof value==='object')return {
+      question:String(value.question||raw),
+      studentAnswer:String(value.studentAnswer||''),
+      correctAnswer:String(value.correctAnswer||''),
+    };
+  }catch{}
+  return {question:raw,studentAnswer:'',correctAnswer:''};
+}
+
 export function ChineseReviewView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();
   const [charRows,setCharRows]=useState<any[]>([]);
@@ -455,10 +468,10 @@ export function ChineseReviewView({ctx}:ViewProps){
     </div>
     <Card title="历史错题">
       <div className="space-y-2">
-        {wrongRows.map(row=><div key={row.question_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7FAFF] p-3">
-          <div><p className="font-medium">{row.question_content||row.question_id}</p><p className="text-xs text-[#7890B0]">错误 {row.wrong_count} 次 · {row.question_type}</p></div>
+        {wrongRows.map(row=>{const detail=decodeWrongQuestion(row.question_content);return <div key={row.question_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7FAFF] p-3">
+          <div><p className="font-medium">{detail.question||row.question_id}</p>{detail.studentAnswer&&<p className="text-xs text-rose-700">你的答案：{detail.studentAnswer}</p>}{detail.correctAnswer&&<p className="text-xs text-emerald-700">参考答案：{detail.correctAnswer}</p>}<p className="text-xs text-[#7890B0]">错误 {row.wrong_count} 次 · {row.question_type}</p></div>
           <button onClick={()=>void resolve(row)} className="rounded-lg border px-3 py-2">标记已解决</button>
-        </div>)}
+        </div>;})}
       </div>
     </Card>
     {!loading&&!todo.length&&!wrongRows.length&&<Notice>当前没有到期的复习内容或未解决错题，继续保持。</Notice>}
