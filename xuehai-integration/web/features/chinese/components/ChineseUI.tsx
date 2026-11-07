@@ -48,7 +48,7 @@ export function ChineseSearch({value,onChange,placeholder}:{value:string;onChang
 }
 
 /** 米字格书写画布；笔迹仅保留在当前页面，不上传原始图像。 */
-export function ChineseHandwritingPad() {
+export function ChineseHandwritingPad({targetChar}:{targetChar?:string}) {
   const canvasRef=useRef<HTMLCanvasElement|null>(null);
   const drawing=useRef(false);
   const paintGrid=useCallback(()=>{
@@ -63,6 +63,7 @@ export function ChineseHandwritingPad() {
     context.scale(ratio,ratio);
     const width=rect.width,height=300;
     context.fillStyle='#fff';context.fillRect(0,0,width,height);
+    if(targetChar){context.save();context.globalAlpha=0.10;context.fillStyle='#29466F';context.textAlign='center';context.textBaseline='middle';context.font='bold 190px serif';context.fillText(targetChar,width/2,height/2);context.restore();}
     context.strokeStyle='#d9e5f4';context.lineWidth=1;context.setLineDash([5,5]);
     context.strokeRect(1,1,width-2,height-2);
     context.beginPath();
@@ -71,7 +72,7 @@ export function ChineseHandwritingPad() {
     context.moveTo(0,0);context.lineTo(width,height);
     context.moveTo(width,0);context.lineTo(0,height);
     context.stroke();context.setLineDash([]);
-  },[]);
+  },[targetChar]);
   useEffect(()=>{
     paintGrid();
     const onResize=()=>paintGrid();
