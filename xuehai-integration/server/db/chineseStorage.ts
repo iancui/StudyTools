@@ -3,6 +3,15 @@ import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { getDbPool } from './storage.ts';
 
 const pool = getDbPool();
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${stableJson(object[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
 type Kind = 'characters' | 'words' | 'sentences';
 const resource = {
   characters: { table: 'chinese_character_progress', item: 'character_id', state: 'is_mastered', doneAt: 'mastered_at' },
@@ -224,7 +233,7 @@ export class ChineseStorage {
     const grade = /^g([1-9]|1[0-2])$/.test(gradeValue) ? gradeValue : 'g3';
     const lessonId = typeof body.lessonId === 'string' ? body.lessonId.slice(0, 64) : null;
     const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
-    const answersJson = JSON.stringify(body.answers ?? null);
+    const answersJson = stableJson(body.answers ?? null);
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_exam_records
        (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
@@ -238,7 +247,7 @@ export class ChineseStorage {
     );
     const saved = rows[0];
     const savedAnswers = typeof saved?.answers_json === 'string' ? JSON.parse(saved.answers_json) : saved?.answers_json;
-    if (!saved || saved.grade !== grade || JSON.stringify(savedAnswers) !== answersJson) {
+    if (!saved || saved.grade !== grade || stableJson(savedAnswers) !== answersJson) {
       throw Object.assign(new Error('测验请求编号已使用，请重新开始测验'), { status: 409 });
     }
     // The service has already verified every answer against the server-owned question bank.
