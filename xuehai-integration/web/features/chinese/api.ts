@@ -85,12 +85,12 @@ export const saveChineseSentences = (completedIds: string[]) =>
   chineseRequest<unknown[]>('/sentences', { method: 'PUT', body: JSON.stringify({ completedIds }) });
 
 /** 提交测验结果；达标奖励由服务端通过学海积分服务发放。 */
-export const submitChineseExam = (body: unknown) =>
-  chineseRequest<unknown>('/exams', { method: 'POST', body: JSON.stringify(body) });
+export const submitChineseExam = (body: Record<string, unknown>) =>
+  chineseRequest<unknown>('/exams', { method: 'POST', body: JSON.stringify({ ...body, requestId: body.requestId || crypto.randomUUID() }) });
 
 /** 保存作文练习与批改结果。 */
-export const submitChineseEssay = (body: unknown) =>
-  chineseRequest<unknown>('/essays', { method: 'POST', body: JSON.stringify(body) });
+export const submitChineseEssay = (body: Record<string, unknown>) =>
+  chineseRequest<unknown>('/essays', { method: 'POST', body: JSON.stringify({ ...body, requestId: body.requestId || crypto.randomUUID() }) });
 
 /** 记录一次生字练习；eventId 用于服务端防止重复计数。 */
 export const recordChineseCharacterPractice = (itemId: string, result: 'correct' | 'wrong', eventId = crypto.randomUUID()) =>
