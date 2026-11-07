@@ -18,6 +18,7 @@ export class ChineseService {
   static completePreview(userId: string, body: Record<string, unknown>) { return ChineseStorage.completePreview(userId, String(body.guideId || '')); }
   static listWrong(userId: string) { return ChineseStorage.listWrongQuestions(userId); }
   static saveWrong(userId: string, body: Record<string, unknown>) { return ChineseStorage.saveWrongQuestion(userId, body); }
+  static resolveWrong(userId: string, body: Record<string, unknown>) { return ChineseStorage.resolveWrongQuestion(userId, String(body.questionId || '')); }
   static listExams(userId: string) { return ChineseStorage.listExams(userId); }
   static async createExam(userId: string, body: Record<string, unknown>) {
     const grade = String(body.grade || '');
