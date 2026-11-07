@@ -31,6 +31,7 @@ export class ChineseSentenceController {
 export class ChineseWrongQuestionController {
   static list(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id)=>ChineseService.listWrong(id)); }
   static create(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,b)=>ChineseService.saveWrong(id,b)); }
+  static resolve(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,b)=>ChineseService.resolveWrong(id,b)); }
 }
 export class ChineseExamController {
   static list(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id)=>ChineseService.listExams(id)); }
