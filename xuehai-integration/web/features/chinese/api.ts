@@ -91,3 +91,28 @@ export const submitChineseExam = (body: unknown) =>
 /** 保存作文练习与批改结果。 */
 export const submitChineseEssay = (body: unknown) =>
   chineseRequest<unknown>('/essays', { method: 'POST', body: JSON.stringify(body) });
+
+/** 记录一次生字练习；eventId 用于服务端防止重复计数。 */
+export const recordChineseCharacterPractice = (itemId: string, result: 'correct' | 'wrong', eventId = crypto.randomUUID()) =>
+  chineseRequest<unknown>('/characters/practice', { method: 'POST', body: JSON.stringify({ itemId, result, eventId }) });
+
+/** 记录一次词语练习；eventId 用于服务端防止重复计数。 */
+export const recordChineseWordPractice = (itemId: string, result: 'correct' | 'wrong', eventId = crypto.randomUUID()) =>
+  chineseRequest<unknown>('/words/practice', { method: 'POST', body: JSON.stringify({ itemId, result, eventId }) });
+
+/** 记录一次句子练习；eventId 用于服务端防止重复计数。 */
+export const recordChineseSentencePractice = (itemId: string, result: 'correct' | 'wrong', eventId = crypto.randomUUID()) =>
+  chineseRequest<unknown>('/sentences/practice', { method: 'POST', body: JSON.stringify({ itemId, result, eventId }) });
+
+/** 获取当前用户错题记录。 */
+export const getChineseWrongQuestions = () => chineseRequest<any[]>('/wrong-questions');
+
+/** 保存一次错题；重复提交同一道题由服务端唯一键处理。 */
+export const saveChineseWrongQuestion = (body: unknown) =>
+  chineseRequest<unknown>('/wrong-questions', { method: 'POST', body: JSON.stringify(body) });
+
+/** 获取测验历史。 */
+export const getChineseExams = () => chineseRequest<any[]>('/exams');
+
+/** 获取作文练习历史。 */
+export const getChineseEssays = () => chineseRequest<any[]>('/essays');
