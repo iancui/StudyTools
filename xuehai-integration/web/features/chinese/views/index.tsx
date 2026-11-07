@@ -112,7 +112,7 @@ export function ChineseReviewView({ctx}:ViewProps){
 }
 
 function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const clean=(value:string)=>value.replace(/^[A-D]\\.\\s*/,'');const answer=clean(typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer));const options=q.options.map((value,i)=>({value:clean(value),rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
+function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const clean=(value:string)=>value.replace(/^[A-D]\.\s*/,'');const answer=clean(typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer));const options=q.options.map((value,i)=>({value:clean(value),rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
 
 export function ChineseExamView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const [answers,setAnswers]=useState<Record<string,string>>({}),[result,setResult]=useState<{score:number;correct:number;total:number}|null>(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[requestId,setRequestId]=useState(()=>crypto.randomUUID()),[startedAt,setStartedAt]=useState(()=>Date.now());
