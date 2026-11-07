@@ -110,6 +110,41 @@ export class ChineseStorage {
   }
 
 
+
+  static async recordStudySession(userId: string, sessionId: string, rawMinutes: unknown) {
+    const duration = Math.max(0, Math.min(240, Math.floor(Number(rawMinutes) || 0)));
+    const safeSessionId = String(sessionId || '').trim();
+    if (!safeSessionId || safeSessionId.length > 64 || duration < 1) {
+      throw Object.assign(new Error('学习计时记录无效'), { status: 400 });
+    }
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [inserted] = await connection.execute<ResultSetHeader>(
+        'INSERT IGNORE INTO chinese_study_sessions (id,user_id,session_id,duration_minutes) VALUES (?,?,?,?)',
+        [randomUUID(), userId, safeSessionId, duration],
+      );
+      if (inserted.affectedRows > 0) {
+        await connection.execute<ResultSetHeader>(
+          `INSERT INTO chinese_user_progress (user_id,total_study_minutes)
+           VALUES (?,?) ON DUPLICATE KEY UPDATE total_study_minutes=total_study_minutes+VALUES(total_study_minutes)`,
+          [userId, duration],
+        );
+      }
+      const [rows] = await connection.execute<RowDataPacket[]>(
+        'SELECT total_study_minutes FROM chinese_user_progress WHERE user_id=? LIMIT 1',
+        [userId],
+      );
+      await connection.commit();
+      return { durationMinutes: duration, totalStudyMinutes: Number(rows[0]?.total_study_minutes || 0), duplicateSession: inserted.affectedRows === 0 };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   static async listPreviews(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT guide_id, completed_at FROM chinese_preview_records WHERE user_id=? ORDER BY completed_at DESC',
