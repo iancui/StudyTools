@@ -1,11 +1,23 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const read = (path) => readFile(resolve(root, path), 'utf8');
+
+async function walk(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await walk(fullPath));
+    else if (/\\.(?:ts|tsx|js|jsx|mjs)$/.test(entry.name)) files.push(fullPath);
+  }
+  return files;
+}
+
 const hash = (value) => {
   let result = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -89,6 +101,17 @@ assert.equal(routeCount, documentedCount, 'API 文档端点数与路由注册数
 const api = await read('web/features/chinese/api.ts');
 assert.match(api, /localStorage\.getItem\('linguastep_token'\)/);
 assert.doesNotMatch(api, /localStorage\.setItem\(/, '语文学习进度不能写入 localStorage');
+const webFiles = await walk(resolve(root, 'web'));
+for (const file of webFiles) {
+  const source = await readFile(file, 'utf8');
+  for (const match of source.matchAll(/\\bfrom\\s+['"]((?:\\.\\.?\\/)[^'"]+)['"]/g)) {
+    assert.match(match[1], /\\.(?:ts|tsx|js|jsx|json)$/, file + ' 存在未带扩展名的相对 import: ' + match[1]);
+  }
+  for (const match of source.matchAll(/localStorage\\.(?:getItem|setItem|removeItem)\\(['"]([^'"]+)['"]/g)) {
+    assert.ok(['linguastep_token', 'xuehai:chinese:tour:v1'].includes(match[1]), file + ' 使用了不允许的本地存储键: ' + match[1]);
+  }
+}
+
 const storage = await read('server/db/chineseStorage.ts');
 assert.match(storage, /pool\.execute/);
 assert.match(storage, /INSERT IGNORE INTO chinese_practice_events/);
