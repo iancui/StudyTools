@@ -30,6 +30,15 @@ export function ChineseHomeView({ctx}:ViewProps){
   const [startedAt,setStartedAt]=useState<number|null>(null),[seconds,setSeconds]=useState(0),[sessionId,setSessionId]=useState(''),[timerNotice,setTimerNotice]=useState(''),[saving,setSaving]=useState(false);
   useEffect(()=>{let live=true;void getChineseProgress().then(p=>{if(live)setProgress(p);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'学习概览暂不可用');});return()=>{live=false;};},[]);
   useEffect(()=>{if(startedAt===null)return;const timer=window.setInterval(()=>setSeconds(Math.floor((Date.now()-startedAt)/1000)),1000);return()=>window.clearInterval(timer);},[startedAt]);
+  // 离开首页时尽力保存已满一分钟的计时；sessionId 由服务端唯一键防重。
+  useEffect(()=>{
+    if(startedAt===null||!sessionId)return;
+    const sessionStart=startedAt, activeSessionId=sessionId;
+    return()=>{
+      const minutes=Math.floor((Date.now()-sessionStart)/60000);
+      if(minutes>=1)void recordChineseStudySession(minutes,activeSessionId).catch(error=>console.warn('离开页面时保存学习计时失败',error));
+    };
+  },[startedAt,sessionId]);
   const links=[['生字学习','/chinese/characters','汉字、拼音、部首与笔画'],['笔顺练习','/chinese/characters/practice','书写与自我检查'],['词语学习','/chinese/words','词义、近反义词和例句'],['句子学习','/chinese/sentences','修辞、文言和仿写'],['作文练习','/chinese/essays','审题、提纲和写作'],['预习','/chinese/preview','课前导读'],['复习','/chinese/review','巩固尚未掌握的内容'],['测验','/chinese/exam','题库与自动评分'],['学习档案','/chinese/archive','错题、测验和作文记录'],['学习设置','/chinese/settings','年级、学期和教材版本']];
   const changeGrade=async(next:GradeId)=>{
     setGrade(next);
