@@ -25,6 +25,6 @@
 - `chinese_preview_records`：预习完成记录；唯一键为 user_id + guide_id。
 - `chinese_study_sessions`：计时 sessionId 幂等记录，旧项目没有可信累计总时长，不回填历史分钟。
 
-旧库用户 ID 是自增数值类型，学海 user_id 是 VARCHAR(36)，不可直接复制。旧 schema 含破坏性删表定义，不能执行于学海。所有目标表无外键，使用 VARCHAR(64) 业务 ID 和 CREATE TABLE IF NOT EXISTS。
+旧库用户 ID 是自增数值类型，学海 user_id 是 VARCHAR(36)，不可直接复制。旧 schema 含破坏性删表定义，不能执行于学海。另外新增 chinese_practice_events、chinese_preview_records、chinese_study_sessions，分别用于练习事件、预习完成和计时会话幂等；这些是运行支撑表，不对应旧库中的独立历史表。所有目标表无外键，使用 VARCHAR(64) 业务 ID 和 CREATE TABLE IF NOT EXISTS。
 
 迁移脚本必须先备份旧库；以旧 username 对账学海 users；无唯一匹配、多个匹配或目标用户不存在时跳过并输出审计，不创建学海用户。先 dry-run 检查记录数量和冲突；正式导入按用户事务和唯一键 upsert，重试不会重复创建记录，也不会补发历史积分。当前脚本没有单独 checkpoint 表，恢复粒度为每个用户事务。
