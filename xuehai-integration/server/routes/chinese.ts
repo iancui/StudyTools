@@ -2,7 +2,7 @@ import type { Router } from 'express';
 import {
   ChineseProgressController, ChineseCharacterController, ChineseWordController,
   ChineseSentenceController, ChineseWrongQuestionController, ChineseExamController,
-  ChineseEssayController, ChinesePreviewController,
+  ChineseEssayController, ChinesePreviewController, ChineseStudySessionController,
 } from '../controllers/chineseController.ts';
 
 /** 注册语文学科路由；鉴权由 routes/index.ts 的全局 authMiddleware 统一处理。 */
@@ -18,6 +18,7 @@ export function registerChineseRoutes(router: Router): void {
   router.get('/chinese/sentences', ChineseSentenceController.list);
   router.put('/chinese/sentences', ChineseSentenceController.update);
   router.post('/chinese/sentences/practice', ChineseSentenceController.practice);
+  router.post('/chinese/study-sessions', ChineseStudySessionController.create);
   router.get('/chinese/previews', ChinesePreviewController.list);
   router.post('/chinese/previews', ChinesePreviewController.complete);
   router.get('/chinese/wrong-questions', ChineseWrongQuestionController.list);
