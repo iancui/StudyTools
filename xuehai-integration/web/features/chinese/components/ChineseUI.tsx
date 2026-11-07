@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode, type PointerEvent } from 'react';
 import type { GradeId } from '../data/chinese.ts';
 import { GRADES_LIST } from '../data/index.ts';
 import { stopChineseSpeech, speakChinese } from '../speech.ts';
@@ -51,7 +51,7 @@ export function ChineseSearch({value,onChange,placeholder}:{value:string;onChang
 export function ChineseHandwritingPad() {
   const canvasRef=useRef<HTMLCanvasElement|null>(null);
   const drawing=useRef(false);
-  const paintGrid=()=>{
+  const paintGrid=useCallback(()=>{
     const canvas=canvasRef.current;
     if(!canvas)return;
     const ratio=window.devicePixelRatio||1;
@@ -71,13 +71,13 @@ export function ChineseHandwritingPad() {
     context.moveTo(0,0);context.lineTo(width,height);
     context.moveTo(width,0);context.lineTo(0,height);
     context.stroke();context.setLineDash([]);
-  };
+  },[]);
   useEffect(()=>{
     paintGrid();
     const onResize=()=>paintGrid();
     window.addEventListener('resize',onResize);
     return()=>window.removeEventListener('resize',onResize);
-  },[]);
+  },[paintGrid]);
   const point=(event:PointerEvent<HTMLCanvasElement>)=>{
     const rect=event.currentTarget.getBoundingClientRect();
     return {x:event.clientX-rect.left,y:event.clientY-rect.top};
