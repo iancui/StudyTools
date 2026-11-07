@@ -9,22 +9,20 @@
 if (path === '/chinese' || path.startsWith('/chinese/')) return 'chinese';
 ```
 
-3. 在 imports 中从本集成包的命名导出文件导入：
+3. 从本集成包的页面命名导出入口导入（复制后位于学海目标路径）：
 
 ```ts
-import {
-  ChineseHomeView,
-  ChineseCharactersView,
-  ChineseCharacterPracticeView,
-  ChineseWordsView,
-  ChineseSentencesView,
-  ChineseEssaysView,
-  ChinesePreviewView,
-  ChineseReviewView,
-  ChineseExamView,
-  ChineseArchiveView,
-  ChineseSettingsView,
-} from '../features/chinese/views/index.tsx';
+import { ChineseHomeView } from '../features/chinese/views/ChineseHomeView.tsx';
+import { ChineseCharactersView } from '../features/chinese/views/ChineseCharactersView.tsx';
+import { ChineseCharacterPracticeView } from '../features/chinese/views/ChineseCharacterPracticeView.tsx';
+import { ChineseWordsView } from '../features/chinese/views/ChineseWordsView.tsx';
+import { ChineseSentencesView } from '../features/chinese/views/ChineseSentencesView.tsx';
+import { ChineseEssaysView } from '../features/chinese/views/ChineseEssaysView.tsx';
+import { ChinesePreviewView } from '../features/chinese/views/ChinesePreviewView.tsx';
+import { ChineseReviewView } from '../features/chinese/views/ChineseReviewView.tsx';
+import { ChineseExamView } from '../features/chinese/views/ChineseExamView.tsx';
+import { ChineseArchiveView } from '../features/chinese/views/ChineseArchiveView.tsx';
+import { ChineseSettingsView } from '../features/chinese/views/ChineseSettingsView.tsx';
 ```
 
 4. 在 shared/admin 判断之后、英语兜底之前增加：
