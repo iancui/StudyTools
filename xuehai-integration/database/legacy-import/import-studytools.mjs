@@ -87,10 +87,10 @@ async function importUser(oldUser) {
     sentences: sentences.length, wrongQuestions: wrongs.length,
     exams: exams.length, essays: essays.length,
     localPreviewGuides: Array.isArray(local.previewedItemIds) ? local.previewedItemIds.filter((id) => typeof id === 'string' && /^prev-g(?:[1-9]|1[0-2])$/.test(id)).length : 0,
-    localMasteredCharacters: Array.isArray(local.masteredCharacterIds) ? local.masteredCharacterIds.length : 0,
-    localMasteredWords: Array.isArray(local.masteredWordIds) ? local.masteredWordIds.length : 0,
-    localCompletedSentences: Array.isArray(local.completedSentenceIds) ? local.completedSentenceIds.length : 0,
-    localWrongQuestionIds: Array.isArray(local.wrongQuestionIds) ? local.wrongQuestionIds.length : 0,
+    localMasteredCharacters: Array.isArray(local.masteredCharacterIds) ? local.masteredCharacterIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100).length : 0,
+    localMasteredWords: Array.isArray(local.masteredWordIds) ? local.masteredWordIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100).length : 0,
+    localCompletedSentences: Array.isArray(local.completedSentenceIds) ? local.completedSentenceIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100).length : 0,
+    localWrongQuestionIds: Array.isArray(local.wrongQuestionIds) ? local.wrongQuestionIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100).length : 0,
     localExams: exams.length === 0 && Array.isArray(local.examHistory) ? local.examHistory.length : 0,
     localEssays: essays.length === 0 && Array.isArray(local.essayPractices) ? local.essayPractices.length : 0,
   };
@@ -187,7 +187,7 @@ async function importUser(oldUser) {
       }
     }
     if (Array.isArray(local.wrongQuestionIds)) {
-      for (const questionId of [...new Set(local.wrongQuestionIds.filter((id) => typeof id === 'string' && id.length > 0))]) {
+      for (const questionId of [...new Set(local.wrongQuestionIds.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100))]) {
         await connection.execute(
           `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content,request_key)
            VALUES (?,?,?,'legacy',NULL,?) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
@@ -205,10 +205,10 @@ async function importUser(oldUser) {
         const key = String(record?.id || index).slice(0, 40);
         await connection.execute(
           `INSERT INTO chinese_exam_records
-           (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
-           VALUES (?, ?, NULL, ?, 0, 0, 0, ?, ?, ?)
+           (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
+           VALUES (?, ?, NULL, ?, ?, 0, 0, 0, ?, ?, ?)
            ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-          [randomUUID(), targetUserId, safeScore(record?.score), Math.max(0,Math.floor(Number(record?.timeSpentSeconds)||0)), jsonValue(record), `legacy-local-exam:${key}`],
+          [randomUUID(), targetUserId, /^g([1-9]|1[0-2])$/.test(String(record?.gradeId || '')) ? String(record.gradeId) : 'g3', safeScore(record?.score), Math.max(0,Math.min(86400,Math.floor(Number(record?.timeSpentSeconds)||0))), jsonValue(record), `legacy-local-exam:${key}`],
         );
       }
     }
