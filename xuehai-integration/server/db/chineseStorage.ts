@@ -164,14 +164,16 @@ export class ChineseStorage {
     const total = Math.max(0, Math.min(100, Math.floor(Number(body.totalQuestions) || 0)));
     const correct = Math.max(0, Math.min(total, Math.floor(Number(body.correctQuestions) || 0)));
     const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const verified = body.verified === true;
+    const passed = verified && score >= 70;
     const lessonId = typeof body.lessonId === 'string' ? body.lessonId.slice(0, 64) : null;
     const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_exam_records
        (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
-       VALUES (?,?,?,?,0,?,?,?,?,?)
+       VALUES (?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),userId,lessonId,score,total,correct,Math.max(0,Math.floor(Number(body.durationSeconds)||0)),JSON.stringify(body.answers ?? null),requestKey],
+      [randomUUID(),userId,lessonId,score,passed?1:0,total,correct,Math.max(0,Math.floor(Number(body.durationSeconds)||0)),JSON.stringify(body.answers ?? null),requestKey],
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT id, lesson_id, score, passed, total_questions, correct_questions, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
@@ -179,7 +181,7 @@ export class ChineseStorage {
     );
     // Client-side answer keys are not trusted for points. Until the server owns
     // the canonical question bank, the score is provisional and earns no points.
-    return { ...(rows[0] || {}), lessonId, requestKey, verified: false, provisionalPassed: score >= 70, passed: false };
+    return { ...(rows[0] || {}), lessonId, requestKey, verified, provisionalPassed: score >= 70, passed };
   }
 
   static async listEssays(userId: string) {
