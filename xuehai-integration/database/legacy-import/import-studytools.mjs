@@ -86,10 +86,11 @@ async function importUser(oldUser) {
     progress: progress.length, characters: chars.length, words: words.length,
     sentences: sentences.length, wrongQuestions: wrongs.length,
     exams: exams.length, essays: essays.length,
-    localPreviewed: Array.isArray(local.previewedItemIds) ? local.previewedItemIds.length : 0,
+    localPreviewGuides: Array.isArray(local.previewedItemIds) ? local.previewedItemIds.filter((id) => typeof id === 'string' && /^prev-g(?:[1-9]|1[0-2])$/.test(id)).length : 0,
     localMasteredCharacters: Array.isArray(local.masteredCharacterIds) ? local.masteredCharacterIds.length : 0,
     localMasteredWords: Array.isArray(local.masteredWordIds) ? local.masteredWordIds.length : 0,
     localCompletedSentences: Array.isArray(local.completedSentenceIds) ? local.completedSentenceIds.length : 0,
+    localWrongQuestionIds: Array.isArray(local.wrongQuestionIds) ? local.wrongQuestionIds.length : 0,
     localExams: exams.length === 0 && Array.isArray(local.examHistory) ? local.examHistory.length : 0,
     localEssays: essays.length === 0 && Array.isArray(local.essayPractices) ? local.essayPractices.length : 0,
   };
