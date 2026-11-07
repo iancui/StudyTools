@@ -1,4 +1,4 @@
-import { GradeInfo, CharacterItem, WordItem, SentenceItem, EssayItem, ExamQuestion, GradeId, CurriculumConfig } from './chinese';
+import { GradeInfo, CharacterItem, WordItem, SentenceItem, EssayItem, ExamQuestion, GradeId, CurriculumConfig } from './chinese.ts';
 
 export const GRADES_LIST: GradeInfo[] = [
   {

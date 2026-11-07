@@ -1,4 +1,4 @@
-import type {HostRequest,MoyunApi,MoyunRouteMap,LearningProgressSnapshot} from "./contracts";
+import type {HostRequest,MoyunApi,MoyunRouteMap,LearningProgressSnapshot} from "./contracts.ts";
 export function createMoyunApi(request:HostRequest,routes:MoyunRouteMap):MoyunApi {
  const get=<T>(path:string,signal?:AbortSignal)=>request<T>({method:"GET",path,signal});
  const put=<T>(path:string,body:unknown,signal?:AbortSignal)=>request<T>({method:"PUT",path,body,signal});

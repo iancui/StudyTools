@@ -1,5 +1,5 @@
-import type { UserProgress } from "./source-progress";
-import type { LearningProgressSnapshot } from "./contracts";
+import type { UserProgress } from "./source-progress.ts";
+import type { LearningProgressSnapshot } from "./contracts.ts";
 export function toLearningProgressSnapshot(p: Partial<UserProgress>): LearningProgressSnapshot {
  const strings=(v:unknown):string[]=>Array.isArray(v)?v.filter((x):x is string=>typeof x==="string"):[];
  const array=(v:unknown):unknown[]=>Array.isArray(v)?v:[];

@@ -12,7 +12,7 @@ import {
   EXAMS_DATA,
   PREVIEW_GUIDES,
   DEFAULT_CURRICULUM,
-} from "./curriculum.data";
+} from "./curriculum.data.ts";
 
 export const MOYUN_CURRICULUM_VERSION = "studytools-main-4a1496c";
 

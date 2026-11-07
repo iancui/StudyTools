@@ -1,6 +1,6 @@
-import type { UserProgress } from "./source-progress";
-import type { LearningProgressSnapshot } from "./contracts";
-import { toLearningProgressSnapshot } from "./progress";
+import type { UserProgress } from "./source-progress.ts";
+import type { LearningProgressSnapshot } from "./contracts.ts";
+import { toLearningProgressSnapshot } from "./progress.ts";
 
 export interface LegacyProgressExport {
   /** Old StudyTools numeric user id; informational only, never a Xuehai id. */

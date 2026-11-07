@@ -1,4 +1,4 @@
-import { GradeId } from './chinese';
+import { GradeId } from './chinese.ts';
 
 // ------------------------------------------------------------
 // 工单 17: 详细学习行为统计 (数据驱动复习用)
