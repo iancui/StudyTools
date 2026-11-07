@@ -175,16 +175,19 @@ export class ChineseStorage {
 
   static async saveWrongQuestion(userId: string, body: Record<string, unknown>) {
     const questionId = String(body.questionId || '');
-    if (!questionId) throw Object.assign(new Error('题目资料不完整'), { status: 400 });
+    const requestKey = String(body.requestId || '');
+    if (!questionId || !requestKey || requestKey.length > 64) throw Object.assign(new Error('题目资料不完整'), { status: 400 });
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_wrong_questions
-       (id,user_id,question_id,question_type,question_content)
-       VALUES (?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE wrong_count=wrong_count+1, question_content=VALUES(question_content),
+       (id,user_id,question_id,question_type,question_content,request_key)
+       VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+       wrong_count=wrong_count + IF(request_key=VALUES(request_key),0,1),
+       question_content=VALUES(question_content), request_key=VALUES(request_key),
        last_wrong_at=CURRENT_TIMESTAMP, is_resolved=0, resolved_at=NULL`,
-      [randomUUID(), userId, questionId, String(body.questionType || 'unknown'), String(body.questionContent || '')],
+      [randomUUID(), userId, questionId, String(body.questionType || 'unknown'), String(body.questionContent || ''), requestKey],
     );
-    return { saved: true };
+    return { saved: true, requestId: requestKey };
   }
 
 
