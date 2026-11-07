@@ -101,8 +101,8 @@ assert.equal(routeCount, documentedCount, 'API 文档端点数与路由注册数
 const api = await read('web/features/chinese/api.ts');
 assert.match(api, /localStorage\.getItem\('linguastep_token'\)/);
 assert.doesNotMatch(api, /localStorage\.setItem\(/, '语文学习进度不能写入 localStorage');
-const webFiles = await walk(resolve(root, 'web'));
-for (const file of webFiles) {
+const sourceFiles = [...await walk(resolve(root, 'web')), ...await walk(resolve(root, 'server'))];
+for (const file of sourceFiles) {
   const source = await readFile(file, 'utf8');
   for (const match of source.matchAll(/\bfrom\s+['"]((?:\.\.?\/)[^'"]+)['"]/g)) {
     assert.match(match[1], /\.(?:ts|tsx|js|jsx|json)$/, file + ' 存在未带扩展名的相对 import: ' + match[1]);
