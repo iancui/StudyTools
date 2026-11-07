@@ -93,7 +93,7 @@ export function ChineseHomeView({ctx}:ViewProps){
   </Frame>;
 }
 export function ChineseCharactersView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const remote=useRemoteIds('characters');const [query,setQuery]=useState(''),[selected,setSelected]=useState<CharacterItem|null>(null),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[practiceEventId,setPracticeEventId]=useState('');
+  const {grade,setGrade,gradeError}=useGrade();const remote=useRemoteIds('characters');const [query,setQuery]=useState(''),[selected,setSelected]=useState<CharacterItem|null>(null),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[practiceEventId,setPracticeEventId]=useState('');
   const items=CHARACTERS_DATA[grade]||[],filtered=items.filter(x=>[x.char,x.pinyin,x.radical,...x.meanings].join(' ').toLowerCase().includes(query.toLowerCase()));
   const practice=async()=>{if(!selected)return;const ok=answer.trim()===selected.char;const eventId=practiceEventId||crypto.randomUUID();setPracticeEventId(eventId);setBusy(true);try{await recordChineseCharacterPractice(selected.id,ok?'correct':'wrong',eventId);if(ok&&!remote.ids.includes(selected.id))await remote.persist([...remote.ids,selected.id]);if(ok)await resolveChineseWrongQuestion(selected.id);if(!ok)await saveChineseWrongQuestion({questionId:selected.id,questionType:'character',requestId:eventId,questionContent:\`看拼音写汉字：\${selected.pinyin}\`});setPracticeEventId('');setNotice(ok?'回答正确，练习已保存。':\`正确汉字是「\${selected.char}」，已加入错题记录。\`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}finally{setBusy(false);}};
   const toggle=async()=>{if(!selected)return;const next=remote.ids.includes(selected.id)?remote.ids.filter(x=>x!==selected.id):[...remote.ids,selected.id];try{await remote.persist(next);setNotice('掌握状态已保存。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
@@ -107,7 +107,7 @@ export function ChineseCharactersView({ctx}:ViewProps){
 }
 
 export function ChineseCharacterPracticeView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();
+  const {grade,setGrade,gradeError}=useGrade();
   const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[eventId,setEventId]=useState(''),[strokeIndex,setStrokeIndex]=useState(0);
   const items=CHARACTERS_DATA[grade]||[];
   const item=items[index%Math.max(items.length,1)];
@@ -162,14 +162,14 @@ export function ChineseCharacterPracticeView({ctx}:ViewProps){
 }
 
 export function ChineseWordsView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const remote=useRemoteIds('words');const [query,setQuery]=useState(''),[notice,setNotice]=useState(''),[eventIds,setEventIds]=useState<Record<string,string>>({});const items=WORDS_DATA[grade]||[];const filtered=items.filter(x=>[x.word,x.pinyin,x.definition,x.pos].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const {grade,setGrade,gradeError}=useGrade();const remote=useRemoteIds('words');const [query,setQuery]=useState(''),[notice,setNotice]=useState(''),[eventIds,setEventIds]=useState<Record<string,string>>({});const items=WORDS_DATA[grade]||[];const filtered=items.filter(x=>[x.word,x.pinyin,x.definition,x.pos].join(' ').toLowerCase().includes(query.toLowerCase()));
   const practice=async(item:WordItem,correct:boolean)=>{const eventId=eventIds[item.id]||crypto.randomUUID();setEventIds(v=>({...v,[item.id]:eventId}));try{await recordChineseWordPractice(item.id,correct?'correct':'wrong',eventId);if(correct&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);if(correct)await resolveChineseWrongQuestion(item.id);if(!correct)await saveChineseWrongQuestion({questionId:item.id,questionType:'word',requestId:eventId,questionContent:item.word+'：'+item.definition});setEventIds(v=>{const n={...v};delete n[item.id];return n;});setNotice(correct?'已记录掌握状态。':'已加入错题记录，稍后复习。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}};
   const toggle=async(item:WordItem)=>{const next=remote.ids.filter(x=>x!==item.id);try{await remote.persist(next);setNotice('已取消掌握状态。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
   return <Frame ctx={ctx} title="词语学习" subtitle="结合词义、词性、近反义词和例句积累表达。"><div className="flex flex-wrap justify-between gap-3"><GradePicker value={grade} error={gradeError} onChange={v=>{void setGrade(v);}}/><Search value={query} onChange={setQuery} placeholder="搜索词语、拼音或释义"/></div>{remote.loading&&<Notice>读取掌握记录…</Notice>}{remote.error&&<Notice error>{remote.error}</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">已掌握 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p><div className="grid gap-3 md:grid-cols-2">{filtered.map(x=><Card key={x.id} title={x.word} meta={x.pinyin}><p>{x.pos} · {x.definition}</p><p>近义词：{x.synonyms.join('、')||'暂无'}</p><p>反义词：{x.antonyms.join('、')||'暂无'}</p><p>例句：{x.exampleSentence}</p><div className="flex gap-2"><SpeakButton text={x.word}/><SpeakButton text={x.exampleSentence} label="朗读例句"/></div>{x.culturalNote&&<p>文化拓展：{x.culturalNote}</p>}<div className="flex flex-wrap gap-2"><button onClick={()=>void practice(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void practice(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button>{remote.ids.includes(x.id)&&<button onClick={()=>void toggle(x)} className="rounded-lg border px-3 py-2">取消掌握</button>}</div></Card>)}</div></Frame>;
 }
 
 export function ChineseSentencesView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();
+  const {grade,setGrade,gradeError}=useGrade();
   const remote=useRemoteIds('sentences');
   const [category,setCategory]=useState('all');
   const [reveal,setReveal]=useState<Record<string,boolean>>({});
@@ -360,7 +360,7 @@ export function ChineseEssaysView({ctx}:ViewProps){
 }
 
 export function ChinesePreviewView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const [step,setStep]=useState(0),[hints,setHints]=useState<Record<number,boolean>>({}),[completed,setCompleted]=useState<string[]>([]),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+  const {grade,setGrade,gradeError}=useGrade();const [step,setStep]=useState(0),[hints,setHints]=useState<Record<number,boolean>>({}),[completed,setCompleted]=useState<string[]>([]),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
   const guide=PREVIEW_GUIDES[grade],steps=guide?.steps||[],current=steps[step],guideId=`preview-${grade}`;
   useEffect(()=>{let live=true;void getChinesePreviews().then(rows=>{if(live)setCompleted(rows.map(x=>x.guide_id));}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'预习记录读取失败');});return()=>{live=false;};},[]);
   const finish=async()=>{setBusy(true);try{await completeChinesePreview(guideId);setCompleted(v=>v.includes(guideId)?v:[...v,guideId]);setNotice('本次预习已完成并保存。');}catch(e){setNotice(e instanceof Error?e.message:'预习保存失败');}finally{setBusy(false);}};
@@ -381,7 +381,7 @@ function decodeWrongQuestion(raw:unknown){
 }
 
 export function ChineseReviewView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();
+  const {grade,setGrade,gradeError}=useGrade();
   const [charRows,setCharRows]=useState<any[]>([]);
   const [wordRows,setWordRows]=useState<any[]>([]);
   const [sentenceRows,setSentenceRows]=useState<any[]>([]);
@@ -486,7 +486,7 @@ function stableQuestion(q:PublicExamQuestion){
 }
 
 export function ChineseExamView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();
+  const {grade,setGrade,gradeError}=useGrade();
   const [answers,setAnswers]=useState<Record<string,string>>({});
   const [result,setResult]=useState<{score:number;correct:number;total:number}|null>(null);
   const [graded,setGraded]=useState<Record<string,{correct:boolean;correctAnswer:string;explanation:string}>>({});
