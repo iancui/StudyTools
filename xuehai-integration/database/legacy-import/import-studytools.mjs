@@ -187,7 +187,7 @@ async function importUser(oldUser) {
         await connection.execute(
           `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content,request_key)
            VALUES (?,?,?,'legacy',NULL,?) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
-          [randomUUID(), targetUserId, questionId, `legacy-local-wrong:${questionId}`],
+          [randomUUID(), targetUserId, questionId, `legacy-local-wrong:${questionId}`.slice(0,64)],
         );
       }
     }
