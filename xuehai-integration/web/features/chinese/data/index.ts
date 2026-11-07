@@ -41,8 +41,6 @@ export interface CurriculumJsonSnapshot {
   version: number;
   source: { repository: string; branch: string; commit: string; note: string };
   grades: CurriculumJsonGrade[];
-  scholarRanks: unknown[];
-  systemBadges: unknown[];
 }
 
 export const CURRICULUM_JSON = curriculumJson as CurriculumJsonSnapshot;
