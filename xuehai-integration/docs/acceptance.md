@@ -16,7 +16,7 @@
 1. 备份 StudyTools 旧 MySQL 数据库、旧浏览器进度导出 JSON 与学海数据库；在学海测试库执行 021_chinese.sql。
 2. 配置两套数据库环境变量，运行 import-studytools.mjs dry-run，检查用户名映射和每类记录数量；核对后再加 --apply --confirm。
 3. 启动学海 pnpm workspace，确认 shared、web、server 构建通过；应用五份 patch 后打开 /chinese。
-4. 完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同课重复提交不重复发分。
+4. 接入服务端可信题库后，完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同一 requestId 重试不重复建记录，同课重复达标不重复发分。当前版本成绩未服务端核验，不发积分。
 5. 使用家长账号查看绑定孩子的语文进度，确认 FamilyService.assertStudentOwned 生效。
 
 ## 未运行
