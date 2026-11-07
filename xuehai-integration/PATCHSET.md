@@ -8,7 +8,7 @@
 
 ## Patch 2 — 课程内容适配
 
-从 `xuehai-integration/src/curriculum.ts` 导出 g1–g12 课程快照；源课程 ID 保持不变。宿主把课程视为只读内容，不把用户进度嵌入课程对象。需确认：学海课程实体 DTO、内容缓存与版本字段。
+从 `xuehai-integration/web/features/chinese/data/curriculum.json` 导入 g1–g12 完整 JSON 快照，或使用 `data/index.ts` 类型化 TS 导出；源课程 ID 保持不变。宿主把课程视为只读内容，不把用户进度嵌入课程对象。需确认：学海课程实体 DTO、内容缓存与版本字段。
 
 ## Patch 3 — 身份与 API 适配
 
