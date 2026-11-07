@@ -41,7 +41,7 @@
 ## 数据迁移操作
 
 1. 分别备份 StudyTools 旧 MySQL 数据库、学海数据库。
-2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username/email 唯一匹配。
+2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username 唯一匹配（旧 StudyTools users 表没有 email 字段）。
 3. 配置 `STUDYTOOLS_DB_*` 与学海 `DB_*` 环境变量。
 4. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs`，检查每个用户的映射状态和记录数量。
 5. 只有核对通过后才执行 `node .../import-studytools.mjs --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
