@@ -129,3 +129,15 @@ CREATE TABLE IF NOT EXISTS chinese_practice_events (
   UNIQUE KEY uk_chinese_practice_user_event (user_id, event_id),
   KEY idx_chinese_practice_user_item (user_id, item_kind, item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 预习完成记录：独立于积分/签到，不触发奖励。
+CREATE TABLE IF NOT EXISTS chinese_preview_records (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  guide_id VARCHAR(100) NOT NULL,
+  completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_chinese_preview_user_guide (user_id, guide_id),
+  KEY idx_chinese_preview_user_completed (user_id, completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
