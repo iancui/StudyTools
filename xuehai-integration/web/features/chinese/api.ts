@@ -129,3 +129,7 @@ export const recordChineseStudySession = (durationMinutes: number, sessionId = c
   chineseRequest<{durationMinutes:number;totalStudyMinutes:number;duplicateSession:boolean}>('/study-sessions', {
     method: 'POST', body: JSON.stringify({ durationMinutes, sessionId }),
   });
+
+/** 将已复习的错题标记为已解决。 */
+export const resolveChineseWrongQuestion = (questionId: string) =>
+  chineseRequest<unknown>('/wrong-questions/resolve', { method: 'POST', body: JSON.stringify({ questionId }) });
