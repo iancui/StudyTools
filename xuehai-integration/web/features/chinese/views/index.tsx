@@ -94,8 +94,8 @@ function HandwritingPad(){
   };
   useEffect(()=>{paintGrid();const onResize=()=>paintGrid();window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize);},[]);
   const point=(event:PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return {x:event.clientX-rect.left,y:event.clientY-rect.top};};
-  const down=(event:React.PointerEvent<HTMLCanvasElement>)=>{const canvas=event.currentTarget,ctx=canvas.getContext('2d');if(!ctx)return;canvas.setPointerCapture(event.pointerId);const p=point(event);drawing.current=true;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29466F';};
-  const move=(event:React.PointerEvent<HTMLCanvasElement>)=>{if(!drawing.current)return;const ctx=event.currentTarget.getContext('2d');if(!ctx)return;const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke();};
+  const down=(event:PointerEvent<HTMLCanvasElement>)=>{const canvas=event.currentTarget,ctx=canvas.getContext('2d');if(!ctx)return;canvas.setPointerCapture(event.pointerId);const p=point(event);drawing.current=true;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29466F';};
+  const move=(event:PointerEvent<HTMLCanvasElement>)=>{if(!drawing.current)return;const ctx=event.currentTarget.getContext('2d');if(!ctx)return;const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke();};
   const up=()=>{drawing.current=false;};
   return <div className="space-y-2"><canvas ref={canvasRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} className="h-[300px] w-full touch-none rounded-xl border border-[#D9E5F4] bg-white"/><div className="flex items-center justify-between"><span className="text-xs text-[#7890B0]">在米字格中书写；笔迹仅在当前页面临时显示。</span><button type="button" onClick={paintGrid} className="rounded-lg border px-3 py-1.5 text-sm">清空画布</button></div></div>;
 }
