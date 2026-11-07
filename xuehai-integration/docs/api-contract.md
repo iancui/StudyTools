@@ -40,4 +40,4 @@
 - 测验：`{ grade, requestId, durationSeconds, answers }`。requestId 用于防止重复提交；服务端必须以可信题库重算分数后才可发积分。练习事件为 `{ itemId, eventId, result }`，eventId 全局唯一（用户范围内）。
 - 作文：`{ requestId, essayId, title, prompt, content, feedback }`。
 
-此表是按本次契约定义的接入目标；后续实现端点数量必须与 `routes/chinese.ts` 实际注册数一致。
+服务端可信题库目前含 175 道年级题目；每次测验按年级稳定选取 10 道（若题库不足则取现有全部题目），前端选项稳定洗牌，服务端以原始答案独立核验。由于当前旧课程库没有真实 lessonId 映射，测验可保存和评分，但不会发放积分。\n\n此表端点共 21 个，与 `routes/chinese.ts` 实际注册数一致。
