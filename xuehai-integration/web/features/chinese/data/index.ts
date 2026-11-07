@@ -52,11 +52,9 @@ export {
   WORDS_DATA,
   SENTENCES_DATA,
   ESSAYS_DATA,
-  EXAMS_DATA,
   PREVIEW_GUIDES,
-  DEFAULT_CURRICULUM,
 } from './curriculum.data.ts';
 export type {
   GradeId, GradeInfo, CharacterItem, WordItem, SentenceItem, EssayItem,
-  ExamQuestion, CurriculumConfig, LearningMode, MainTab,
+CurriculumConfig, LearningMode, MainTab,
 } from './chinese.ts';
