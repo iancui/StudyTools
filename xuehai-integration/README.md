@@ -59,19 +59,32 @@
 
 ## 历史数据迁移
 
-1. 先备份旧 StudyTools 数据库、旧浏览器进度导出文件和学海数据库。
-2. 在学海测试库执行 `021_chinese.sql`。
-3. 确认学海目标用户已存在，并能通过旧用户名唯一匹配；脚本不会创建学海用户。
-4. 配置 `STUDYTOOLS_DB_*` 和学海 `DB_*` 环境变量。
-5. 默认 dry-run：
+1. **先备份两套数据库**，备份文件放在仓库外的安全位置：
 
 ```bash
-cd apps/server
-node database/legacy-import/import-studytools.mjs
+mysqldump -h "$STUDYTOOLS_DB_HOST" -P "${STUDYTOOLS_DB_PORT:-3306}" -u "$STUDYTOOLS_DB_USER" -p "$STUDYTOOLS_DB_NAME" > studytools-before-xuehai.sql
+mysqldump -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p "$DB_NAME" > xuehai-before-chinese.sql
 ```
 
-6. 如需迁移浏览器进度，先导出旧 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总为以完整 key 为属性名的 JSON 文件，再附加 `--progress-json=/安全路径/legacy-progress.json`。匿名全局 key 无法自动关联用户；旧自定义课程 key `moyun_custom_curriculum_data_v1` 需要单独备份，待学海确认课程管理模型后处理。
-7. 检查 dry-run 的用户匹配、冲突和记录数量。只有备份、映射和数量核对通过后，才执行：
+2. **只在学海测试库执行新表迁移**（确认 DB_NAME 指向测试库）：
+
+```bash
+mysql -h "$DB_HOST" -P "${DB_PORT:-3306}" -u "$DB_USER" -p "$DB_NAME" < database/migrations/021_chinese.sql
+```
+
+3. 确认目标学海用户已存在，并能通过旧用户名唯一匹配；脚本不会创建学海用户。旧 StudyTools users 表没有 email 字段，因此当前只使用 username 对账。
+4. 配置 `STUDYTOOLS_DB_*` 和学海 `DB_*` 环境变量。
+5. 如需迁移旧浏览器进度，先导出旧 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总成以完整 key 为属性名的 JSON 文件，再附加 `--progress-json=/安全路径/legacy-progress.json`。匿名全局 key 无法自动关联用户；旧自定义课程 key `moyun_custom_curriculum_data_v1` 需要单独备份，待学海确认课程管理模型后处理。
+6. **先运行 dry-run**。在 `apps/server/` 目录执行（脚本使用该项目已安装的 mysql2）：
+
+```bash
+node database/legacy-import/import-studytools.mjs
+# 如需包含显式导出的浏览器进度：
+node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json
+```
+
+7. 检查每个用户的匹配状态和各类记录数量。出现未匹配或多重匹配时，先人工解决账号映射；不要自动创建学海账号。
+8. 只有备份、用户映射和记录数量核对通过后，才执行正式导入：
 
 ```bash
 node database/legacy-import/import-studytools.mjs --apply --confirm
@@ -79,7 +92,7 @@ node database/legacy-import/import-studytools.mjs --apply --confirm
 node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm
 ```
 
-脚本按用户事务导入并使用唯一键防重；不迁移旧积分/签到/徽章，不调用 awardPoints。
+脚本按用户事务导入并使用唯一键防重；不迁移旧积分/签到/徽章，不调用 awardPoints。若导入中途失败，先检查该用户事务是否回滚，再修复原因后重试。
 
 ## 五份宿主 Patch
 
