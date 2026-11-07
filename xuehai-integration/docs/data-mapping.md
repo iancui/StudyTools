@@ -14,6 +14,6 @@
 | user_badges | 不建表 | 全部走学海积分/徽章能力 |
 | refresh_tokens | 不建表 | 学海 auth_sessions 已负责会话 |
 
-旧表主键和 user_id 是 unsigned BIGINT，学海 user_id 是 VARCHAR(36)，不可直接复制。旧 schema 有 DROP TABLE，不能执行于学海。所有目标表无外键，使用 VARCHAR(64) 业务 ID 和 CREATE TABLE IF NOT EXISTS。
+旧表主键和 user_id 为旧库自增数值类型，学海 user_id 是 VARCHAR(36)，不可直接复制。旧 schema 含破坏性删表定义，不能执行于学海。所有目标表无外键，使用 VARCHAR(64) 业务 ID 和 CREATE TABLE IF NOT EXISTS。
 
 迁移脚本必须先备份旧库；以旧 username/email 对账学海 users；无唯一匹配、多个匹配或目标用户不存在时跳过并输出审计，不创建学海用户。导入先 dry-run，只报告计划条数与冲突；正式导入用事务、唯一键 upsert、每批记录 checkpoint，避免重复导入和重复积分。
