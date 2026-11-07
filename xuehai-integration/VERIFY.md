@@ -5,10 +5,10 @@
 1. [ ] 不新增 npm 依赖，package.json 与锁文件保持不变。
 2. [ ] 原有 `src/` 与 `server/` 不改动。
 3. [ ] 不新增 users/auth/refresh-token 表、路由或 token 存储。
-4. [ ] 不读写 localStorage；旧存储只能由用户显式导出后传入 dry-run。
+4. [ ] 不把学习进度写入 localStorage；仅允许 linguastep_token、引导标记、学科偏好和 UI 状态。
 5. [ ] 积分、签到、连续签到、徽章、会员字段不进入迁移 snapshot。
 6. [ ] 课程内容保留源 gradeId 和稳定 item id。
-7. [ ] API 请求只能经宿主注入的 HostRequest 发出，且路由必须显式配置。
+7. [ ] API 请求统一经 web/features/chinese/api.ts，路由固定为 /api/chinese/...；会话沿用学海 token。
 8. [ ] 迁移计划是纯函数，无 DB IO；目标 userId 必须由学海认证流程提供。
 
 ## 宿主接入验收（接入后执行）
