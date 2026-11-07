@@ -104,10 +104,10 @@ assert.doesNotMatch(api, /localStorage\.setItem\(/, '语文学习进度不能写
 const webFiles = await walk(resolve(root, 'web'));
 for (const file of webFiles) {
   const source = await readFile(file, 'utf8');
-  for (const match of source.matchAll(/\\bfrom\\s+['"]((?:\\.\\.?\\/)[^'"]+)['"]/g)) {
-    assert.match(match[1], /\\.(?:ts|tsx|js|jsx|json)$/, file + ' 存在未带扩展名的相对 import: ' + match[1]);
+  for (const match of source.matchAll(/\bfrom\s+['"]((?:\.\.?\/)[^'"]+)['"]/g)) {
+    assert.match(match[1], /\.(?:ts|tsx|js|jsx|json)$/, file + ' 存在未带扩展名的相对 import: ' + match[1]);
   }
-  for (const match of source.matchAll(/localStorage\\.(?:getItem|setItem|removeItem)\\(['"]([^'"]+)['"]/g)) {
+  for (const match of source.matchAll(/localStorage\.(?:getItem|setItem|removeItem)\(['"]([^'"]+)['"]/g)) {
     assert.ok(['linguastep_token', 'xuehai:chinese:tour:v1'].includes(match[1]), file + ' 使用了不允许的本地存储键: ' + match[1]);
   }
 }
