@@ -8,7 +8,9 @@
 - `web/features/chinese/api.ts`：本学科唯一 API 层，读取学海 `linguastep_token`，统一响应、401、友好错误和积分动画事件。
 - `web/features/chinese/ChineseShell.tsx`、`views/index.tsx`：语文外壳和页面路由组件骨架。
 - `web/features/chinese/data/**`：从旧项目课程模块提取的类型与静态数据 TypeScript 快照，稳定课程 ID 保留。
-- `server/routes/chinese.ts`、`controllers/chineseController.ts`、`services/chineseService.ts`、`db/chineseStorage.ts`：后端分层骨架；SQL 集中在 chineseStorage。
+- `server/routes/chinese.ts`、`controllers/chineseController.ts`、`services/chineseService.ts`、`db/chineseStorage.ts`：后端分层；SQL 集中在 chineseStorage。
+- `server/data/chineseExamBank.ts`：服务端可信题库，服务端独立核验选择题/填空题答案，避免客户端伪造分数。
+- 预习完成记录和练习事件具备服务端持久化与幂等保护。
 - `database/migrations/021_chinese.sql`：独立语文表，CREATE TABLE IF NOT EXISTS、VARCHAR(36) user_id、无外键、不包含破坏性删表语句。
 - `database/legacy-import/import-studytools.mjs`：默认 dry-run；正式执行需同时传 `--apply --confirm`。
 - `docs/api-contract.md`、`docs/data-mapping.md`、`docs/acceptance.md`：端点、字段映射和验收说明。
@@ -32,7 +34,7 @@
 - 不创建登录/注册/会话；所有后端 userId 从学海 `req.user!.id` 获取。
 - 前端只使用学海 `linguastep_token`；本地不保存学习进度。
 - 墨滴、签到、连续签到、旧徽章全部不迁移。
-- 只有**服务端核验通过**且单课测验达到 70 分时，后端才允许调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。当前题库仍是前端快照，成绩暂存为待核验，不发积分。
+- 只有**服务端核验通过**、达到 70 分且绑定正式 lessonId 时，后端才允许调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。当前年级题库已复制到服务端并核验；但源题库没有正式 lessonId 映射，因此成绩可核验保存，暂不发积分。
 - 预习、复习、练习、作文不发分。
 - 历史迁移只按用户名/可用邮箱对账学海用户，不创建用户；默认 dry-run，不发积分。
 
