@@ -40,3 +40,8 @@ export class ChineseEssayController {
   static list(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id)=>ChineseService.listEssays(id)); }
   static create(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,b)=>ChineseService.createEssay(id,b)); }
 }
+
+export class ChinesePreviewController {
+  static list(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id)=>ChineseService.listPreviews(id)); }
+  static complete(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,body)=>ChineseService.completePreview(id,body)); }
+}
