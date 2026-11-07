@@ -548,11 +548,14 @@ export function ChineseArchiveView({ctx}:ViewProps){
       .finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
   },[]);
-  const masteredChars=chars.filter(x=>Boolean(x.is_mastered)).length;
-  const masteredWords=words.filter(x=>Boolean(x.is_mastered)).length;
-  const completedSentences=sentences.filter(x=>Boolean(x.is_completed)).length;
   const grade=(GRADES_LIST.some(x=>x.id===progress?.grade)?progress.grade:'g3') as GradeId;
-  const totals=(CHARACTERS_DATA[grade]?.length||0)+(WORDS_DATA[grade]?.length||0)+(SENTENCES_DATA[grade]?.length||0);
+  const gradeCharacterIds=new Set((CHARACTERS_DATA[grade]||[]).map(x=>x.id));
+  const gradeWordIds=new Set((WORDS_DATA[grade]||[]).map(x=>x.id));
+  const gradeSentenceIds=new Set((SENTENCES_DATA[grade]||[]).map(x=>x.id));
+  const masteredChars=chars.filter(x=>gradeCharacterIds.has(String(x.character_id))&&Boolean(x.is_mastered)).length;
+  const masteredWords=words.filter(x=>gradeWordIds.has(String(x.word_id))&&Boolean(x.is_mastered)).length;
+  const completedSentences=sentences.filter(x=>gradeSentenceIds.has(String(x.sentence_id))&&Boolean(x.is_completed)).length;
+  const totals=gradeCharacterIds.size+gradeWordIds.size+gradeSentenceIds.size;
   const mastered=masteredChars+masteredWords+completedSentences;
   const masteryRate=totals?Math.min(100,Math.round(mastered/totals*100)):0;
   const averageScore=exams.length?Math.round(exams.reduce((sum,x)=>sum+Number(x.score||0),0)/exams.length):0;
