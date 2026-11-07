@@ -64,7 +64,10 @@ export class ChineseService {
       const canonical = question.type === 'choice' && typeof question.correctAnswer === 'number'
         ? question.options?.[question.correctAnswer]
         : String(question.correctAnswer);
-      if (studentAnswer.trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) continue;
+      if (studentAnswer.trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) {
+        await ChineseStorage.resolveWrongQuestion(userId, question.id);
+        continue;
+      }
       await ChineseStorage.saveWrongQuestion(userId, {
         questionId: question.id,
         questionType: question.category,
