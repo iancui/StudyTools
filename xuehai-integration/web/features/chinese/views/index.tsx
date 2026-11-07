@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
 import {
@@ -88,7 +88,7 @@ function HandwritingPad(){
     context.strokeRect(1,1,width-2,height-2);context.beginPath();context.moveTo(width/2,0);context.lineTo(width/2,height);context.moveTo(0,height/2);context.lineTo(width,height/2);context.moveTo(0,0);context.lineTo(width,height);context.moveTo(width,0);context.lineTo(0,height);context.stroke();context.setLineDash([]);
   };
   useEffect(()=>{paintGrid();const onResize=()=>paintGrid();window.addEventListener('resize',onResize);return()=>window.removeEventListener('resize',onResize);},[]);
-  const point=(event:React.PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return {x:event.clientX-rect.left,y:event.clientY-rect.top};};
+  const point=(event:PointerEvent<HTMLCanvasElement>)=>{const rect=event.currentTarget.getBoundingClientRect();return {x:event.clientX-rect.left,y:event.clientY-rect.top};};
   const down=(event:React.PointerEvent<HTMLCanvasElement>)=>{const canvas=event.currentTarget,ctx=canvas.getContext('2d');if(!ctx)return;canvas.setPointerCapture(event.pointerId);const p=point(event);drawing.current=true;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#29466F';};
   const move=(event:React.PointerEvent<HTMLCanvasElement>)=>{if(!drawing.current)return;const ctx=event.currentTarget.getContext('2d');if(!ctx)return;const p=point(event);ctx.lineTo(p.x,p.y);ctx.stroke();};
   const up=()=>{drawing.current=false;};
