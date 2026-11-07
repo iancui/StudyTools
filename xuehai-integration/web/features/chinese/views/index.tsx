@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
+import type { GradeId, CharacterItem, WordItem, SentenceItem } from '../data/index.ts';
+import type { PublicExamQuestion } from '../data/examBank.ts';
 import { ChineseFrame as Frame, ChineseGradePicker as GradePicker, ChineseNotice as Notice, ChineseCard as Card, ChineseSpeakButton as SpeakButton, ChineseSearch as Search, ChineseHandwritingPad as HandwritingPad } from '../components/ChineseUI.tsx';
 import { getReviewSchedule, sortReviewQueue } from '../reviewAlgorithm.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
@@ -301,13 +302,17 @@ export function ChineseReviewView({ctx}:ViewProps){
 }
 
 function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
-function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const clean=(value:string)=>value.replace(/^[A-D]\.\s*/,'');const answer=clean(typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer));const options=q.options.map((value,i)=>({value:clean(value),rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
+function stableQuestion(q:PublicExamQuestion){
+  if(!q.options)return {q};
+  const options=q.options.map((value,i)=>({value,rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);
+  return {q:{...q,options}};
+}
 
 export function ChineseExamView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();
   const [answers,setAnswers]=useState<Record<string,string>>({});
   const [result,setResult]=useState<{score:number;correct:number;total:number}|null>(null);
-  const [graded,setGraded]=useState<Record<string,boolean>>({});
+  const [graded,setGraded]=useState<Record<string,{correct:boolean;correctAnswer:string;explanation:string}>>({});
   const [notice,setNotice]=useState('');
   const [busy,setBusy]=useState(false);
   const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
@@ -321,13 +326,13 @@ export function ChineseExamView({ctx}:ViewProps){
       return;
     }
     const answerSet=Object.fromEntries(questions.map(({q})=>[q.id,answers[q.id]||'']));
-    const correct=questions.filter(x=>String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()).length;
-    const score=Math.round((correct/questions.length)*100);
     setBusy(true);setNotice('');
     try{
       const response=await submitChineseExam({requestId,grade,durationSeconds:Math.max(0,Math.floor((Date.now()-startedAt)/1000)),answers:answerSet});
-      setResult({score:Number(response?.score??score),correct:Number(response?.correct_questions??correct),total:Number(response?.total_questions??questions.length)});
-      setGraded(Object.fromEntries(questions.map(x=>[x.q.id,String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()])));
+      const feedback=(response?.gradedAnswers||{}) as Record<string,{correct:boolean;correctAnswer:string;explanation:string}>;
+      const correct=Object.values(feedback).filter(item=>item.correct).length;
+      setResult({score:Number(response?.score??0),correct:Number(response?.correct_questions??correct),total:Number(response?.total_questions??questions.length)});
+      setGraded(feedback);
       setRequestId(crypto.randomUUID());setStartedAt(Date.now());
       setNotice(response?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；错题已自动归档。由于尚未关联正式课次，本次不发放积分。');
     }catch(e){
@@ -339,12 +344,12 @@ export function ChineseExamView({ctx}:ViewProps){
     <GradePicker value={grade} onChange={v=>{setGrade(v);setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}}/>
     <p className="text-xs text-[#7890B0]">本次测验由服务端题库独立核对答案；题库为年级综合题，尚未映射正式课次，因此暂不发放积分。</p>
     <div className="space-y-3">
-      {questions.map(({q,answer})=><Card key={q.id} title={q.question} meta={`${q.difficulty} · ${q.category}`}>
+      {questions.map(({q})=><Card key={q.id} title={q.question} meta={`${q.difficulty} · ${q.category}`}>
         {q.type==='choice'&&q.options?.map((option,i)=><label key={i} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E7EEF8] p-2">
           <input type="radio" name={q.id} checked={answers[q.id]===option} disabled={Boolean(result)} onChange={()=>setAnswers(v=>({...v,[q.id]:option}))}/>{option}
         </label>)}
         {q.type==='fill'&&<input value={answers[q.id]||''} disabled={Boolean(result)} onChange={e=>setAnswers(v=>({...v,[q.id]:e.target.value}))} className="w-full rounded-lg border px-3 py-2" placeholder="请输入答案"/>}
-        {result&&<Notice error={!graded[q.id]}>{graded[q.id]?'回答正确。':'需要巩固。'} 参考答案：{answer}。{q.explanation.replace(/[A-D]\s*为[^。；]*[。；]?/g,'')}</Notice>}
+        {result&&graded[q.id]&&<Notice error={!graded[q.id].correct}>{graded[q.id].correct?'回答正确。':'需要巩固。'} 参考答案：{graded[q.id].correctAnswer}。{graded[q.id].explanation}</Notice>}
       </Card>)}
     </div>
     <button disabled={busy||!questions.length||Boolean(result)} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>
