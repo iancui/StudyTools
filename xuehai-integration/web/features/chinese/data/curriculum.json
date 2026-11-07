@@ -371,8 +371,6 @@
                     "水",
                     "山"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "“日”读音为“rì”，表示太阳或日子。",
                   "gradeId": "g1",
                   "difficulty": "easy",
                   "legacyId": "q-g1-1"
@@ -388,8 +386,6 @@
                     "2笔",
                     "3笔"
                   ],
-                  "correctAnswer": 3,
-                  "explanation": "“山”的笔顺是：竖、竖折、竖，一共3笔。",
                   "gradeId": "g1",
                   "difficulty": "easy",
                   "legacyId": "q-g1-2"
@@ -405,8 +401,6 @@
                     "高兴",
                     "开心"
                   ],
-                  "correctAnswer": 1,
-                  "explanation": "“快乐”指心情舒畅开心，反义词是“伤心”或“难过”。",
                   "gradeId": "g1",
                   "difficulty": "easy",
                   "legacyId": "q-g1-3"
@@ -422,8 +416,6 @@
                     "火球",
                     "荷叶"
                   ],
-                  "correctAnswer": 1,
-                  "explanation": "弯弯的月牙形状两头尖，最像轻巧可爱的小船；圆月才像大圆盘。",
                   "gradeId": "g1",
                   "difficulty": "easy",
                   "legacyId": "q-g1-4"
@@ -809,8 +801,6 @@
                     "王",
                     "白"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "“碧”是上下结构，部首是底部的“石”字旁。",
                   "gradeId": "g2",
                   "difficulty": "easy",
                   "legacyId": "q-g2-1"
@@ -826,8 +816,6 @@
                     "机器坏了不能运转",
                     "教室里鸦雀无声"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "“生机勃勃”形容生命力旺盛，充满生机与活力的美好景象。",
                   "gradeId": "g2",
                   "difficulty": "easy",
                   "legacyId": "q-g2-2"
@@ -843,8 +831,6 @@
                     "天上的白云真白啊。",
                     "他的个子比爸爸还要高。"
                   ],
-                  "correctAnswer": 1,
-                  "explanation": "“小溪唱着欢快的歌儿向前奔跑”把没有生命的小溪赋予了人的歌唱与奔跑动作，是拟人句；",
                   "gradeId": "g2",
                   "difficulty": "medium",
                   "legacyId": "q-g2-3"
@@ -1224,8 +1210,6 @@
                     "生动活泼、如同活物的样子",
                     "慢慢走动的样子"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "“栩栩”指生动逼真宛若活着的样子。典出庄周梦蝶“栩栩然胡蝶也”。",
                   "gradeId": "g3",
                   "difficulty": "medium",
                   "legacyId": "q-g3-1"
@@ -1241,8 +1225,6 @@
                     "“春天真美啊”！小红由衷地赞叹道。",
                     "小红由衷地赞叹道：“春天真美啊！”。"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "感叹号在引号内部，提示语在后，句末用句号收尾，A项格式完全正确。",
                   "gradeId": "g3",
                   "difficulty": "medium",
                   "legacyId": "q-g3-2"
@@ -1561,8 +1543,6 @@
                     "反问",
                     "对偶"
                   ],
-                  "correctAnswer": 1,
-                  "explanation": "将潮水奔涌之声比作“千万辆坦克”，既运用了比喻，又运用了夸张手法增强气势。",
                   "gradeId": "g4",
                   "difficulty": "medium",
                   "legacyId": "q-g4-1"
@@ -1578,8 +1558,6 @@
                     "保护时间 · 改进工作 · 增进友谊",
                     "保护环境 · 改善生活 · 提高水平"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "D项“端正态度”、“养成习惯”、“发展智力”动宾搭配严谨规范。A项“改善生活”和“提高水平”虽通，但D项词语搭配最为规整典范。",
                   "gradeId": "g4",
                   "difficulty": "hard",
                   "legacyId": "q-g4-2"
@@ -1879,8 +1857,6 @@
                     "宽阔的操场上，同学们正在热烈地讨论着即将举办的运动会。",
                     "能否坚持体育锻炼，是保持身体健康的关键。"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "A项滥用介词“经过……使……”缺少主语；B项“五颜六色”与“红花”矛盾；C项两面对一面（能否 vs 是）；D项语句通顺无语病。",
                   "gradeId": "g5",
                   "difficulty": "hard",
                   "legacyId": "q-g5-1"
@@ -2179,8 +2155,6 @@
                     "廉颇与蔺相如",
                     "伯牙与钟子期"
                   ],
-                  "correctAnswer": 3,
-                  "explanation": "“伯牙鼓琴，钟子期善听”，子期死后伯牙绝弦，成为“高山流水”千古知己佳话。",
                   "gradeId": "g6",
                   "difficulty": "medium",
                   "legacyId": "q-g6-1"
@@ -2475,8 +2449,6 @@
                     "运用拟人手法，将昼夜更迭与季节转换人格化，寓新旧交替之哲理于景中。",
                     "仅仅说明了早晨太阳升起和春天到来的自然时间。"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "“生”与“入”赋予“海日”与“江春”以自主灵动的人性，写出了新事物在旧事物中孕育蓬勃的自然哲理。",
                   "gradeId": "g7",
                   "difficulty": "medium",
                   "legacyId": "q-g7-1"
@@ -2776,8 +2748,6 @@
                     "父亲攀爬月台买橘子的艰难“背影”",
                     "祖母去世的哀伤消息"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "全文以“背影”为核心线索，四次写到背影，特别是望父买橘爬月台的特定背影，将如山父爱刻画入微。",
                   "gradeId": "g8",
                   "difficulty": "medium",
                   "legacyId": "q-g8-1"
@@ -3071,8 +3041,6 @@
                     "衔远山，吞长江，浩浩汤汤，横无际涯。",
                     "先天下之忧而忧，后天下之乐而乐。"
                   ],
-                  "correctAnswer": 3,
-                  "explanation": "“先天下之忧而忧，后天下之乐而乐”超越了个人宠辱，成为士大夫乃至中华民族最高境界的家国担当。",
                   "gradeId": "g9",
                   "difficulty": "medium",
                   "legacyId": "q-g9-1"
@@ -3376,8 +3344,6 @@
                     "从万物永恒存在的辩证角度化解生命短促的悲观虚无，展现超脱旷达胸襟。",
                     "肯定神仙的存在与长生不老的真实性。"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "苏轼借水与月的辩证法则，阐发变与不变的哲学关系，从而破除“哀吾生之须臾”的感伤，达到精神的永恒超脱。",
                   "gradeId": "g10",
                   "difficulty": "hard",
                   "legacyId": "q-g10-1"
@@ -3679,8 +3645,6 @@
                     "先破后立，通过对“闭关主义”和“送去主义”的归谬批驳，确立自主甄别的拿来主义。",
                     "纯粹从理论上推导唯物主义历史观。"
                   ],
-                  "correctAnswer": 2,
-                  "explanation": "鲁迅采用杂文锋利的“先破后立”逻辑，层层揭示送去主义的危害，最终提出“运用脑髓、放出眼光、自己来拿”的核心论点。",
                   "gradeId": "g11",
                   "difficulty": "hard",
                   "legacyId": "q-g11-1"
@@ -3987,8 +3951,6 @@
                     "三者完全独立，在棋局与人生中毫无关联。",
                     "俗手只要反复练习，就能自动变成妙手。"
                   ],
-                  "correctAnswer": 0,
-                  "explanation": "厚积薄发、实事求是。本手乃根基，妙手乃升华，违背规律妄图速成则沦为俗手，此为最严密的辩证结构。",
                   "gradeId": "g12",
                   "difficulty": "hard",
                   "legacyId": "q-g12-1"
