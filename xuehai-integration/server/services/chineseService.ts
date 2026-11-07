@@ -58,6 +58,25 @@ export class ChineseService {
       ...body, lessonId: null, requestId, totalQuestions: total,
       correctQuestions: correct, score, verified: true,
     });
+    // 错题由服务端根据可信题库答案自动落库；同一测验重试使用相同 requestKey，避免重复增加错题次数。
+    for (const question of expected) {
+      const studentAnswer = String(submitted[question.id] ?? '');
+      const canonical = question.type === 'choice' && typeof question.correctAnswer === 'number'
+        ? question.options?.[question.correctAnswer]
+        : String(question.correctAnswer);
+      if (studentAnswer.trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) continue;
+      await ChineseStorage.saveWrongQuestion(userId, {
+        questionId: question.id,
+        questionType: question.category,
+        requestId: `${requestId.replace(/-/g, '').slice(0, 16)}:${question.id.slice(0, 40)}`,
+        questionContent: JSON.stringify({
+          question: question.question,
+          options: question.options,
+          correctAnswer: canonical,
+          studentAnswer,
+        }),
+      });
+    }
     const pointsAward = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '尚未关联正式课次，暂不发放积分' };
     return { ...exam, grade, pointsAward };
   }
