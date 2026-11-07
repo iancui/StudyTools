@@ -26,6 +26,6 @@
 ## 已知未完成
 
 - 页面目前是路由/内容浏览骨架；笔顺画布、真实练习交互、作文批改 UI、预习/复习算法、测验答题与错题闭环尚未完整接线。
-- 课程数据已从旧项目抽取为本包内 TypeScript 快照（data/curriculum.data.ts），尚未转换为要求的 curriculum.json。
+- 课程数据已抽取为 TypeScript 运行时快照及 `web/features/chinese/data/curriculum.json`（约 85KB）；按源项目年级分类保存，没有伪造 semester/lesson 映射。
 - 家长聚合视图依赖学海 FamilyService 与权限策略，尚未实现。
 - 学科偏好 patch 需在真实 subjectPreference.ts 中保留原有存储键后合并；目标文件内容未提供，不能安全生成整文件替换。
