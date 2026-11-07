@@ -9,7 +9,7 @@ import {
   getChineseWords, saveChineseWords, getChineseSentences, saveChineseSentences,
   recordChineseCharacterPractice, recordChineseWordPractice, recordChineseSentencePractice,
   submitChineseExam, submitChineseEssay, getChineseWrongQuestions, saveChineseWrongQuestion,
-  getChineseExams, getChineseEssays, getChinesePreviews, completeChinesePreview, recordChineseStudySession,
+  getChineseExams, getChineseEssays, getChinesePreviews, completeChinesePreview, recordChineseStudySession, resolveChineseWrongQuestion,
 } from '../api.ts';
 
 interface ViewProps { ctx: { navigate: (route: string) => void } }
@@ -80,7 +80,7 @@ export function ChineseHomeView({ctx}:ViewProps){
 export function ChineseCharactersView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const remote=useRemoteIds('characters');const [query,setQuery]=useState(''),[selected,setSelected]=useState<CharacterItem|null>(null),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[practiceEventId,setPracticeEventId]=useState('');
   const items=CHARACTERS_DATA[grade]||[],filtered=items.filter(x=>[x.char,x.pinyin,x.radical,...x.meanings].join(' ').toLowerCase().includes(query.toLowerCase()));
-  const practice=async()=>{if(!selected)return;const ok=answer.trim()===selected.char;const eventId=practiceEventId||crypto.randomUUID();setPracticeEventId(eventId);setBusy(true);try{await recordChineseCharacterPractice(selected.id,ok?'correct':'wrong',eventId);if(ok&&!remote.ids.includes(selected.id))await remote.persist([...remote.ids,selected.id]);if(!ok)await saveChineseWrongQuestion({questionId:selected.id,questionType:'character',requestId:eventId,questionContent:\`看拼音写汉字：\${selected.pinyin}\`});setPracticeEventId('');setNotice(ok?'回答正确，练习已保存。':\`正确汉字是「\${selected.char}」，已加入错题记录。\`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}finally{setBusy(false);}};
+  const practice=async()=>{if(!selected)return;const ok=answer.trim()===selected.char;const eventId=practiceEventId||crypto.randomUUID();setPracticeEventId(eventId);setBusy(true);try{await recordChineseCharacterPractice(selected.id,ok?'correct':'wrong',eventId);if(ok&&!remote.ids.includes(selected.id))await remote.persist([...remote.ids,selected.id]);if(ok)await resolveChineseWrongQuestion(selected.id);if(!ok)await saveChineseWrongQuestion({questionId:selected.id,questionType:'character',requestId:eventId,questionContent:\`看拼音写汉字：\${selected.pinyin}\`});setPracticeEventId('');setNotice(ok?'回答正确，练习已保存。':\`正确汉字是「\${selected.char}」，已加入错题记录。\`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}finally{setBusy(false);}};
   const toggle=async()=>{if(!selected)return;const next=remote.ids.includes(selected.id)?remote.ids.filter(x=>x!==selected.id):[...remote.ids,selected.id];try{await remote.persist(next);setNotice('掌握状态已保存。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
   return <Frame ctx={ctx} title="生字学习" subtitle="查看读音、字义和易错发音，通过练习巩固记忆。">
     <div className="flex flex-wrap justify-between gap-3"><GradePicker value={grade} onChange={v=>{setGrade(v);setSelected(null);}}/><Search value={query} onChange={setQuery} placeholder="搜索汉字、拼音或字义"/></div>
@@ -112,13 +112,13 @@ function HandwritingPad(){
 
 export function ChineseCharacterPracticeView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[eventId,setEventId]=useState('');const items=CHARACTERS_DATA[grade]||[];const item=items[index%Math.max(items.length,1)];
-  const submit=async()=>{if(!item)return;const ok=answer.trim()===item.char;setBusy(true);try{const key=eventId||crypto.randomUUID();setEventId(key);await recordChineseCharacterPractice(item.id,ok?'correct':'wrong',key);if(ok){const rows=await getChineseCharacters();const ids=rows.filter(r=>r.is_mastered).map(r=>String(r.character_id));if(!ids.includes(item.id))await saveChineseCharacters([...ids,item.id]);}if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',requestId:key,questionContent:`目标字 ${item.char}，笔顺：${item.strokeOrderHint}`});setEventId('');setNotice(ok?'自我检查通过，练习已记录。':`目标字是「${item.char}」，请对照笔顺提示再练。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
+  const submit=async()=>{if(!item)return;const ok=answer.trim()===item.char;setBusy(true);try{const key=eventId||crypto.randomUUID();setEventId(key);await recordChineseCharacterPractice(item.id,ok?'correct':'wrong',key);if(ok){const rows=await getChineseCharacters();const ids=rows.filter(r=>r.is_mastered).map(r=>String(r.character_id));if(!ids.includes(item.id))await saveChineseCharacters([...ids,item.id]);await resolveChineseWrongQuestion(item.id);}if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',requestId:key,questionContent:`目标字 ${item.char}，笔顺：${item.strokeOrderHint}`});setEventId('');setNotice(ok?'自我检查通过，练习已记录。':`目标字是「${item.char}」，请对照笔顺提示再练。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
   return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。"><GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');}}/>{item&&<Card title={item.char} meta={item.pinyin}><p>{item.strokeOrderHint}</p><HandwritingPad/><div className="flex flex-wrap gap-2">{(item.strokeOrderSteps||[]).map((s,i)=><span key={i} className="rounded-lg border bg-[#F7FAFF] px-3 py-2">第{i+1}笔：{s}</span>)}</div><label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><div className="flex gap-2"><button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button><button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');}} className="rounded-lg border px-3 py-2">下一个</button></div>{notice&&<Notice>{notice}</Notice>}</Card>}</Frame>;
 }
 
 export function ChineseWordsView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const remote=useRemoteIds('words');const [query,setQuery]=useState(''),[notice,setNotice]=useState(''),[eventIds,setEventIds]=useState<Record<string,string>>({});const items=WORDS_DATA[grade]||[];const filtered=items.filter(x=>[x.word,x.pinyin,x.definition,x.pos].join(' ').toLowerCase().includes(query.toLowerCase()));
-  const practice=async(item:WordItem,correct:boolean)=>{const eventId=eventIds[item.id]||crypto.randomUUID();setEventIds(v=>({...v,[item.id]:eventId}));try{await recordChineseWordPractice(item.id,correct?'correct':'wrong',eventId);if(correct&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);if(!correct)await saveChineseWrongQuestion({questionId:item.id,questionType:'word',requestId:eventId,questionContent:item.word+'：'+item.definition});setEventIds(v=>{const n={...v};delete n[item.id];return n;});setNotice(correct?'已记录掌握状态。':'已加入错题记录，稍后复习。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}};
+  const practice=async(item:WordItem,correct:boolean)=>{const eventId=eventIds[item.id]||crypto.randomUUID();setEventIds(v=>({...v,[item.id]:eventId}));try{await recordChineseWordPractice(item.id,correct?'correct':'wrong',eventId);if(correct&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);if(correct)await resolveChineseWrongQuestion(item.id);if(!correct)await saveChineseWrongQuestion({questionId:item.id,questionType:'word',requestId:eventId,questionContent:item.word+'：'+item.definition});setEventIds(v=>{const n={...v};delete n[item.id];return n;});setNotice(correct?'已记录掌握状态。':'已加入错题记录，稍后复习。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}};
   const toggle=async(item:WordItem)=>{const next=remote.ids.filter(x=>x!==item.id);try{await remote.persist(next);setNotice('已取消掌握状态。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
   return <Frame ctx={ctx} title="词语学习" subtitle="结合词义、词性、近反义词和例句积累表达。"><div className="flex flex-wrap justify-between gap-3"><GradePicker value={grade} onChange={setGrade}/><Search value={query} onChange={setQuery} placeholder="搜索词语、拼音或释义"/></div>{remote.loading&&<Notice>读取掌握记录…</Notice>}{remote.error&&<Notice error>{remote.error}</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">已掌握 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p><div className="grid gap-3 md:grid-cols-2">{filtered.map(x=><Card key={x.id} title={x.word} meta={x.pinyin}><p>{x.pos} · {x.definition}</p><p>近义词：{x.synonyms.join('、')||'暂无'}</p><p>反义词：{x.antonyms.join('、')||'暂无'}</p><p>例句：{x.exampleSentence}</p><div className="flex gap-2"><SpeakButton text={x.word}/><SpeakButton text={x.exampleSentence} label="朗读例句"/></div>{x.culturalNote&&<p>文化拓展：{x.culturalNote}</p>}<div className="flex flex-wrap gap-2"><button onClick={()=>void practice(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void practice(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button>{remote.ids.includes(x.id)&&<button onClick={()=>void toggle(x)} className="rounded-lg border px-3 py-2">取消掌握</button>}</div></Card>)}</div></Frame>;
 }
@@ -168,6 +168,7 @@ export function ChineseSentencesView({ctx}:ViewProps){
       });
       await recordChineseSentencePractice(item.id,'correct',eventId);
       if(!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);
+      await resolveChineseWrongQuestion(item.id);
       setDrafts(v=>({...v,[item.id]:''}));
       setRequestIds(v=>{const n={...v};delete n[item.id];return n;});
       setEventIds(v=>{const n={...v};delete n[item.id];return n;});
@@ -295,6 +296,7 @@ export function ChineseReviewView({ctx}:ViewProps){
         if(item.kind==='character')await saveChineseCharacters([...new Set([...charRows.filter(x=>x.is_mastered).map(x=>String(x.character_id)),item.id])]);
         else if(item.kind==='word')await saveChineseWords([...new Set([...wordRows.filter(x=>x.is_mastered).map(x=>String(x.word_id)),item.id])]);
         else await saveChineseSentences([...new Set([...sentenceRows.filter(x=>x.is_completed).map(x=>String(x.sentence_id)),item.id])]);
+        await resolveChineseWrongQuestion(item.id);
       }else{
         await saveChineseWrongQuestion({questionId:item.id,questionType:item.kind,requestId:eventId,questionContent:item.title});
       }
@@ -354,7 +356,7 @@ export function ChineseExamView({ctx}:ViewProps){
       setResult({score:Number((response as any)?.score??score),correct,total:questions.length});
       setGraded(Object.fromEntries(questions.map(x=>[x.q.id,String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()])));
       for(const x of questions.filter(q=>String(answerSet[q.q.id]).trim().toLowerCase()!==q.answer.trim().toLowerCase())){
-        await saveChineseWrongQuestion({questionId:x.q.id,questionType:x.q.category,requestId:`${requestId}:${x.q.id}`,questionContent:JSON.stringify({question:x.q.question,options:x.q.options,correctAnswer:x.answer,studentAnswer:answerSet[x.q.id]})});
+        await saveChineseWrongQuestion({questionId:x.q.id,questionType:x.q.category,requestId:`${requestId.replace(/-/g,'').slice(0,16)}:${x.q.id.slice(0,40)}`,questionContent:JSON.stringify({question:x.q.question,options:x.q.options,correctAnswer:x.answer,studentAnswer:answerSet[x.q.id]})});
       }
       setRequestId(crypto.randomUUID());setStartedAt(Date.now());
       setNotice((response as any)?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；由于尚未关联正式课次，本次不发放积分。');
