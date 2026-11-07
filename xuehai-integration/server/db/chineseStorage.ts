@@ -48,6 +48,7 @@ export class ChineseStorage {
 
   static async replaceDetail(userId: string, kind: Kind, ids: string[]) {
     const cfg = resource[kind];
+    if (!itemId || itemId.length > 100 || !eventId || eventId.length > 64) throw Object.assign(new Error('练习信息无效'), { status: 400 });
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -176,7 +177,9 @@ export class ChineseStorage {
   static async saveWrongQuestion(userId: string, body: Record<string, unknown>) {
     const questionId = String(body.questionId || '');
     const requestKey = String(body.requestId || '');
-    if (!questionId || !requestKey || requestKey.length > 64) throw Object.assign(new Error('题目资料不完整'), { status: 400 });
+    const questionType = String(body.questionType || 'unknown').slice(0, 32);
+    const questionContent = String(body.questionContent || '').slice(0, 4000);
+    if (!questionId || questionId.length > 100 || !requestKey || requestKey.length > 64) throw Object.assign(new Error('题目资料不完整'), { status: 400 });
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_wrong_questions
        (id,user_id,question_id,question_type,question_content,request_key)
@@ -185,7 +188,7 @@ export class ChineseStorage {
        wrong_count=wrong_count + IF(request_key=VALUES(request_key),0,1),
        question_content=VALUES(question_content), request_key=VALUES(request_key),
        last_wrong_at=CURRENT_TIMESTAMP, is_resolved=0, resolved_at=NULL`,
-      [randomUUID(), userId, questionId, String(body.questionType || 'unknown'), String(body.questionContent || ''), requestKey],
+      [randomUUID(), userId, questionId, questionType, questionContent, requestKey],
     );
     return { saved: true, requestId: requestKey };
   }
@@ -243,6 +246,7 @@ export class ChineseStorage {
   static async createEssay(userId: string, body: Record<string, unknown>) {
     const content = String(body.content || '').trim();
     if (!content) throw Object.assign(new Error('请先填写作文内容'), { status: 400 });
+    if ([...content].length > 30000) throw Object.assign(new Error('作文内容过长，请分段保存'), { status: 400 });
     const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_essay_records
