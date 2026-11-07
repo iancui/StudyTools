@@ -44,7 +44,7 @@
 1. 分别备份 StudyTools 旧 MySQL 数据库、学海数据库。
 2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username 唯一匹配（旧 StudyTools users 表没有 email 字段）。
 3. 配置 `STUDYTOOLS_DB_*` 与学海 `DB_*` 环境变量。
-4. 若需导入旧浏览器进度，先导出 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总成以完整 key 为属性名的 JSON 文件；再传 `--progress-json=/安全路径/legacy-progress.json`。全局匿名 key 不会自动关联用户。
+4. 若需导入旧浏览器进度，先导出 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总成以完整 key 为属性名的 JSON 文件；再传 `--progress-json=/安全路径/legacy-progress.json`。全局匿名 key 不会自动关联用户。旧自定义课程 key moyun_custom_curriculum_data_v1 不在本次迁移范围内；请单独备份 JSON，待学海确认课程管理模型后再导入。
 5. 进入 `apps/server/`，从该目录执行 `node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json`，检查用户映射和记录数量（脚本依赖 apps/server 安装的 mysql2）。
 6. 只有核对通过后才执行 `node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
 
