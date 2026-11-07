@@ -20,7 +20,7 @@
 | GET | /api/chinese/wrong-questions | 错题列表 | 无 |
 | POST | /api/chinese/wrong-questions | 新增/更新错题 | 无 |
 | GET | /api/chinese/exams | 测验记录列表 | 无 |
-| POST | /api/chinese/exams | 保存测验记录；按课次首次达 70 分调用学海积分 | 条件发 1 点 |
+| POST | /api/chinese/exams | 保存测验记录；按课次首次达 70 分调用学海积分 | 服务端核验通过且达标后才发 1 点；当前前端题库分数不可信，暂不发分 |
 | GET | /api/chinese/essays | 作文记录列表 | 无 |
 | POST | /api/chinese/essays | 保存作文及批改 JSON | 无 |
 
@@ -33,7 +33,7 @@
 - 进度更新：`grade`、`semester`、`textbookVersion`、`currentLessonId`、`studyMinutesDelta`。
 - 详细进度：字符/词语使用 `{ masteredIds: string[] }`；句子使用 `{ completedIds: string[] }`。
 - 练习事件：`{ itemId: string, result: 'correct' | 'wrong' }`。
-- 测验：`{ lessonId, score, totalQuestions, correctQuestions, durationSeconds, answers }`。
+- 测验：`{ lessonId, requestId, score, totalQuestions, correctQuestions, durationSeconds, answers }`。requestId 用于防止重复提交；服务端必须以可信题库重算分数后才可发积分。练习事件为 `{ itemId, eventId, result }`，eventId 全局唯一（用户范围内）。
 - 作文：`{ essayId, title, prompt, content, feedback }`。
 
 此表是按本次契约定义的接入目标；后续实现端点数量必须与 `routes/chinese.ts` 实际注册数一致。
