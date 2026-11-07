@@ -92,9 +92,11 @@ CREATE TABLE IF NOT EXISTS chinese_exam_records (
   correct_questions INT NOT NULL DEFAULT 0,
   duration_seconds INT NOT NULL DEFAULT 0,
   answers_json JSON NULL,
+  request_key VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_chinese_exam_user_created (user_id, created_at),
-  KEY idx_chinese_exam_user_lesson (user_id, lesson_id)
+  KEY idx_chinese_exam_user_lesson (user_id, lesson_id),
+  UNIQUE KEY uk_chinese_exam_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS chinese_essay_records (
@@ -107,8 +109,23 @@ CREATE TABLE IF NOT EXISTS chinese_essay_records (
   word_count INT NOT NULL DEFAULT 0,
   score DECIMAL(6,2) NULL,
   feedback_json JSON NULL,
+  request_key VARCHAR(64) NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'submitted',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_chinese_essay_user_created (user_id, created_at)
+  KEY idx_chinese_essay_user_created (user_id, created_at),
+  UNIQUE KEY uk_chinese_essay_request (user_id, request_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 练习事件幂等表：同一客户端事件重试不会重复累计练习次数。
+CREATE TABLE IF NOT EXISTS chinese_practice_events (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  event_id VARCHAR(64) NOT NULL,
+  item_kind VARCHAR(16) NOT NULL,
+  item_id VARCHAR(100) NOT NULL,
+  result VARCHAR(8) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_chinese_practice_user_event (user_id, event_id),
+  KEY idx_chinese_practice_user_item (user_id, item_kind, item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
