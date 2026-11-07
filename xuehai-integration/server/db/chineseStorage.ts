@@ -303,19 +303,35 @@ export class ChineseStorage {
     const essayId = typeof body.essayId === 'string' ? body.essayId.slice(0, 100) : null;
     const title = typeof body.title === 'string' ? body.title.slice(0, 200) : null;
     const prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 10000) : null;
-    const feedbackJson = JSON.stringify(body.feedback ?? null);
+    const feedbackJson = stableJson(body.feedback ?? null);
     if (feedbackJson.length > 20000) throw Object.assign(new Error('作文反馈内容过长'), { status: 400 });
-    await pool.execute<ResultSetHeader>(
-      `INSERT INTO chinese_essay_records
-       (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,request_key,status)
-       VALUES (?,?,?,?,?,?,?,?,?,'submitted')
-       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),userId,essayId,title,prompt,content,[...content].length,feedbackJson,requestKey],
-    );
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT id, created_at FROM chinese_essay_records WHERE user_id=? AND request_key=? LIMIT 1',
-      [userId, requestKey],
-    );
-    return { ...(rows[0] || {}), requestKey };
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO chinese_essay_records
+         (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,request_key,status)
+         VALUES (?,?,?,?,?,?,?,?,?,'submitted')
+         ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+        [randomUUID(),userId,essayId,title,prompt,content,[...content].length,feedbackJson,requestKey],
+      );
+      const [rows] = await connection.execute<RowDataPacket[]>(
+        'SELECT id, essay_id, title, prompt, content, feedback_json, created_at FROM chinese_essay_records WHERE user_id=? AND request_key=? LIMIT 1',
+        [userId, requestKey],
+      );
+      const saved = rows[0];
+      const savedFeedback = typeof saved?.feedback_json === 'string' ? JSON.parse(saved.feedback_json) : saved?.feedback_json;
+      if (!saved || saved.content !== content || saved.essay_id !== essayId || saved.title !== title || saved.prompt !== prompt || stableJson(savedFeedback) !== feedbackJson) {
+        throw Object.assign(new Error('作文请求编号已使用，请重新提交'), { status: 409 });
+      }
+      await connection.commit();
+      return { id: saved.id, created_at: saved.created_at, requestKey };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
+}
 }
