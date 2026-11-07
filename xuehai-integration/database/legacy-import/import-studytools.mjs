@@ -116,8 +116,9 @@ async function importUser(oldUser) {
     );
     for (const row of exams) await connection.execute(
       `INSERT INTO chinese_exam_records
-       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,created_at)
-       VALUES (?,?,NULL,?,?,?,?,?,?,?)`,
+       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key,created_at)
+       VALUES (?,?,NULL,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
       [randomUUID(),targetUserId,safeScore(row.score),0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
     );
     for (const row of essays) await connection.execute(
