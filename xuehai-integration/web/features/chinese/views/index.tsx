@@ -74,9 +74,58 @@ export function ChineseCharactersView({ctx}:ViewProps){
 }
 
 export function ChineseCharacterPracticeView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[eventId,setEventId]=useState('');const items=CHARACTERS_DATA[grade]||[];const item=items[index%Math.max(items.length,1)];
-  const submit=async()=>{if(!item)return;const ok=answer.trim()===item.char;setBusy(true);try{const key=eventId||crypto.randomUUID();setEventId(key);await recordChineseCharacterPractice(item.id,ok?'correct':'wrong',key);if(ok){const rows=await getChineseCharacters();const ids=rows.filter(r=>r.is_mastered).map(r=>String(r.character_id));if(!ids.includes(item.id))await saveChineseCharacters([...ids,item.id]);await resolveChineseWrongQuestion(item.id);}if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',requestId:key,questionContent:`目标字 ${item.char}，笔顺：${item.strokeOrderHint}`});setEventId('');setNotice(ok?'自我检查通过，练习已记录。':`目标字是「${item.char}」，请对照笔顺提示再练。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
-  return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。"><GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');}}/>{item&&<Card title={item.char} meta={item.pinyin}><p>{item.strokeOrderHint}</p><HandwritingPad/><div className="flex flex-wrap gap-2">{(item.strokeOrderSteps||[]).map((s,i)=><span key={i} className="rounded-lg border bg-[#F7FAFF] px-3 py-2">第{i+1}笔：{s}</span>)}</div><label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><div className="flex gap-2"><button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button><button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');}} className="rounded-lg border px-3 py-2">下一个</button></div>{notice&&<Notice>{notice}</Notice>}</Card>}</Frame>;
+  const {grade,setGrade}=useGrade();
+  const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[eventId,setEventId]=useState(''),[strokeIndex,setStrokeIndex]=useState(0);
+  const items=CHARACTERS_DATA[grade]||[];
+  const item=items[index%Math.max(items.length,1)];
+  const strokes=item?.strokeOrderSteps||[];
+  const submit=async()=>{
+    if(!item)return;
+    const ok=answer.trim()===item.char;
+    setBusy(true);
+    try{
+      const key=eventId||crypto.randomUUID();
+      setEventId(key);
+      await recordChineseCharacterPractice(item.id,ok?'correct':'wrong',key);
+      if(ok){
+        const rows=await getChineseCharacters();
+        const ids=rows.filter(r=>r.is_mastered).map(r=>String(r.character_id));
+        if(!ids.includes(item.id))await saveChineseCharacters([...ids,item.id]);
+        await resolveChineseWrongQuestion(item.id);
+      }else{
+        await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',requestId:key,questionContent:'目标字 '+item.char+'，笔顺：'+item.strokeOrderHint});
+      }
+      setEventId('');
+      setNotice(ok?'自我检查通过，练习已记录。':'目标字是「'+item.char+'」，请对照笔顺提示再练。');
+    }catch(e){setNotice(e instanceof Error?e.message:'保存失败');}
+    finally{setBusy(false);}
+  };
+  return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。">
+    <GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');setStrokeIndex(0);}}/>
+    {item&&<Card title={item.char} meta={item.pinyin}>
+      <p>{item.strokeOrderHint}</p>
+      <HandwritingPad targetChar={item.char}/>
+      {strokes.length>0&&<div className="rounded-xl bg-[#F7FAFF] p-3">
+        <div className="flex items-center justify-between gap-2"><strong>笔顺分步提示</strong><span className="text-xs text-[#7890B0]">{Math.min(strokeIndex+1,strokes.length)} / {strokes.length}</span></div>
+        <div className="mt-3 flex items-center gap-3">
+          <span className="grid h-14 w-14 place-items-center rounded-xl border border-blue-200 bg-white text-3xl font-bold text-[#29466F]">{strokes[strokeIndex]||'完成'}</span>
+          <span className="text-sm text-[#607797]">{strokeIndex<strokes.length?'第 '+(strokeIndex+1)+' 笔：'+strokes[strokeIndex]:'笔顺提示已完成，请结合米字格完整书写。'}</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button disabled={strokeIndex===0} onClick={()=>setStrokeIndex(i=>Math.max(0,i-1))} className="rounded-lg border px-3 py-2 disabled:opacity-40">上一笔</button>
+          <button disabled={strokeIndex>=strokes.length} onClick={()=>setStrokeIndex(i=>Math.min(strokes.length,i+1))} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-40">下一笔</button>
+          <button onClick={()=>setStrokeIndex(0)} className="rounded-lg border px-3 py-2">重看笔顺</button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{strokes.map((stroke,i)=><span key={i} className={'rounded-lg border px-2 py-1 text-sm '+(i===strokeIndex?'border-blue-400 bg-blue-100 text-blue-800':'border-[#E7EEF8] bg-white text-[#7890B0]')}>{i+1}. {stroke}</span>)}</div>
+      </div>}
+      <label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label>
+      <div className="flex gap-2">
+        <button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button>
+        <button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');setStrokeIndex(0);}} className="rounded-lg border px-3 py-2">下一个</button>
+      </div>
+      {notice&&<Notice>{notice}</Notice>}
+    </Card>}
+  </Frame>;
 }
 
 export function ChineseWordsView({ctx}:ViewProps){
