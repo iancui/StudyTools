@@ -217,6 +217,7 @@ export class ChineseStorage {
     const total = Math.max(0, Math.min(100, Math.floor(Number(body.totalQuestions) || 0)));
     const correct = Math.max(0, Math.min(total, Math.floor(Number(body.correctQuestions) || 0)));
     const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const durationSeconds = Math.max(0, Math.min(86400, Math.floor(Number(body.durationSeconds) || 0)));
     const verified = body.verified === true;
     const passed = verified && score >= 70;
     const lessonId = typeof body.lessonId === 'string' ? body.lessonId.slice(0, 64) : null;
@@ -226,7 +227,7 @@ export class ChineseStorage {
        (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
        VALUES (?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),userId,lessonId,score,passed?1:0,total,correct,Math.max(0,Math.floor(Number(body.durationSeconds)||0)),JSON.stringify(body.answers ?? null),requestKey],
+      [randomUUID(),userId,lessonId,score,passed?1:0,total,correct,durationSeconds,JSON.stringify(body.answers ?? null),requestKey],
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT id, lesson_id, score, passed, total_questions, correct_questions, duration_seconds, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
@@ -254,7 +255,7 @@ export class ChineseStorage {
        (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,request_key,status)
        VALUES (?,?,?,?,?,?,?,?,?,'submitted')
        ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),userId,body.essayId || null,body.title || null,body.prompt || null,content,[...content].length,JSON.stringify(body.feedback ?? null),requestKey],
+      [randomUUID(),userId,essayId,title,prompt,content,[...content].length,feedbackJson,requestKey],
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT id, created_at FROM chinese_essay_records WHERE user_id=? AND request_key=? LIMIT 1',
