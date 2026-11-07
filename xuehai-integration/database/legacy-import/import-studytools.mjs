@@ -142,13 +142,16 @@ async function importUser(oldUser) {
        is_resolved=VALUES(is_resolved), last_wrong_at=VALUES(last_wrong_at), resolved_at=VALUES(resolved_at)`,
       [randomUUID(),targetUserId,row.question_id,row.question_type,row.question_content,row.wrong_count,row.correct_count,row.is_resolved,row.first_wrong_at,row.last_wrong_at,row.resolved_at,`legacy-db-wrong:${row.id}`],
     );
-    for (const row of exams) await connection.execute(
-      `INSERT INTO chinese_exam_records
-       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key,created_at)
-       VALUES (?,?,NULL,?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-      [randomUUID(),targetUserId,safeScore(row.score),0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
-    );
+    for (const row of exams) {
+      const legacyGrade = /^g([1-9]|1[0-2])$/.test(String(row.grade || '')) ? String(row.grade) : 'g3';
+      await connection.execute(
+        `INSERT INTO chinese_exam_records
+         (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key,created_at)
+         VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+        [randomUUID(),targetUserId,legacyGrade,safeScore(row.score),0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
+      );
+    }
     for (const row of essays) await connection.execute(
       `INSERT INTO chinese_essay_records
        (id,user_id,essay_id,title,prompt,content,word_count,score,feedback_json,request_key,status,created_at,updated_at)
