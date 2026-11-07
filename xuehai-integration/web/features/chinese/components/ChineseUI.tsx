@@ -26,6 +26,7 @@ export function ChineseGradePicker({value,onChange,error}:{value:GradeId;onChang
       {GRADES_LIST.map(grade=><option key={grade.id} value={grade.id}>{grade.name}</option>)}
     </select>
   </label>{error&&<p role="alert" className="text-xs text-rose-700">{error}</p>}</div>;
+}
 
 export function ChineseNotice({children,error=false}:{children:ReactNode;error?:boolean}) {
   return <p role="status" aria-live="polite" className={`rounded-xl px-3 py-2 text-sm ${error?'bg-rose-50 text-rose-700':'bg-blue-50 text-blue-700'}`}>{children}</p>;
