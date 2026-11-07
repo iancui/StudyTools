@@ -149,7 +149,7 @@ async function importUser(oldUser) {
          (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key,created_at)
          VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-        [randomUUID(),targetUserId,legacyGrade,safeScore(row.score),0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
+        [randomUUID(),targetUserId,legacyGrade,safeScore(row.score),safeScore(row.score)>=70?1:0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
       );
     }
     for (const row of essays) await connection.execute(
@@ -206,9 +206,9 @@ async function importUser(oldUser) {
         await connection.execute(
           `INSERT INTO chinese_exam_records
            (id,user_id,lesson_id,grade,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
-           VALUES (?, ?, NULL, ?, ?, 0, 0, 0, ?, ?, ?)
+           VALUES (?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?)
            ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
-          [randomUUID(), targetUserId, /^g([1-9]|1[0-2])$/.test(String(record?.gradeId || '')) ? String(record.gradeId) : 'g3', safeScore(record?.score), Math.max(0,Math.min(86400,Math.floor(Number(record?.timeSpentSeconds)||0))), jsonValue(record), `legacy-local-exam:${key}`],
+          [randomUUID(), targetUserId, /^g([1-9]|1[0-2])$/.test(String(record?.gradeId || '')) ? String(record.gradeId) : 'g3', safeScore(record?.score), safeScore(record?.score)>=70?1:0, Math.max(0,Math.min(86400,Math.floor(Number(record?.timeSpentSeconds)||0))), jsonValue(record), `legacy-local-exam:${key}`],
         );
       }
     }
