@@ -39,12 +39,12 @@
 `server/migrations/schema.sql` 包含 users、user_progress、user_character_progress、user_word_progress、user_sentence_progress、user_wrong_questions、exam_records、essay_practices、checkin_records、user_badges、refresh_tokens。
 
 重要事实：
-- users.id 与多张表的 user_id 为 unsigned BIGINT；
-- schema 快照开头含 DROP TABLE IF EXISTS，明确不能在生产环境执行；
+- 旧 users 主键与关联字段为旧库自增数值类型；
+- schema 快照包含可能删除已有数据的定义，不能在生产环境直接执行；
 - 外键指向旧 users 表；
 - 旧进度摘要表混有墨滴、连续签到等学海不应接管的字段。
 
-因此不复制旧 users / auth / check-in / badges / refresh_tokens 结构，不把旧 BIGINT user_id 直接写入学海。宿主 user_id 的真实类型须以学海 schema 为准。
+因此不复制旧 users / auth / check-in / badges / refresh_tokens 结构，不把旧库数值型 user_id 直接写入学海。宿主 user_id 的真实类型须以学海 schema 为准。
 
 ## 依赖
 
