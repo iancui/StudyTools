@@ -141,3 +141,14 @@ CREATE TABLE IF NOT EXISTS chinese_preview_records (
   UNIQUE KEY uk_chinese_preview_user_guide (user_id, guide_id),
   KEY idx_chinese_preview_user_completed (user_id, completed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 学习计时会话：使用 session_id 幂等，防止重复提交累计学习分钟。
+CREATE TABLE IF NOT EXISTS chinese_study_sessions (
+  id VARCHAR(64) NOT NULL PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  session_id VARCHAR(64) NOT NULL,
+  duration_minutes INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_chinese_study_user_session (user_id, session_id),
+  KEY idx_chinese_study_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
