@@ -123,3 +123,9 @@ export const getChinesePreviews = () => chineseRequest<Array<{guide_id:string;co
 /** 保存一条预习完成记录，不产生积分。 */
 export const completeChinesePreview = (guideId: string) =>
   chineseRequest<unknown>('/previews', { method: 'POST', body: JSON.stringify({ guideId }) });
+
+/** 保存一次学习计时会话；同一 sessionId 重试不会重复累计分钟。 */
+export const recordChineseStudySession = (durationMinutes: number, sessionId = crypto.randomUUID()) =>
+  chineseRequest<{durationMinutes:number;totalStudyMinutes:number;duplicateSession:boolean}>('/study-sessions', {
+    method: 'POST', body: JSON.stringify({ durationMinutes, sessionId }),
+  });
