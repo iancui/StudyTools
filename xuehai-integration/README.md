@@ -32,7 +32,7 @@
 - 不创建登录/注册/会话；所有后端 userId 从学海 `req.user!.id` 获取。
 - 前端只使用学海 `linguastep_token`；本地不保存学习进度。
 - 墨滴、签到、连续签到、旧徽章全部不迁移。
-- 只有单课测验达到 70 分时，后端调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。
+- 只有**服务端核验通过**且单课测验达到 70 分时，后端才允许调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。当前题库仍是前端快照，成绩暂存为待核验，不发积分。
 - 预习、复习、练习、作文不发分。
 - 历史迁移只按用户名/可用邮箱对账学海用户，不创建用户；默认 dry-run，不发积分。
 
