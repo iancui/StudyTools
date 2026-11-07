@@ -326,10 +326,10 @@ export function ChineseExamView({ctx}:ViewProps){
     setBusy(true);setNotice('');
     try{
       const response=await submitChineseExam({requestId,grade,durationSeconds:Math.max(0,Math.floor((Date.now()-startedAt)/1000)),answers:answerSet});
-      setResult({score:Number((response as any)?.score??score),correct,total:questions.length});
+      setResult({score:Number(response?.score??score),correct:Number(response?.correct_questions??correct),total:Number(response?.total_questions??questions.length)});
       setGraded(Object.fromEntries(questions.map(x=>[x.q.id,String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()])));
       setRequestId(crypto.randomUUID());setStartedAt(Date.now());
-      setNotice((response as any)?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；错题已自动归档。由于尚未关联正式课次，本次不发放积分。');
+      setNotice(response?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；错题已自动归档。由于尚未关联正式课次，本次不发放积分。');
     }catch(e){
       setNotice(e instanceof Error?e.message:'测验提交失败；可以安全重试。');
     }finally{setBusy(false);}
