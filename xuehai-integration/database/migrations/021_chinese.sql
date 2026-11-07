@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS chinese_exam_records (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
   user_id VARCHAR(36) NOT NULL,
   lesson_id VARCHAR(64) NULL,
+  grade VARCHAR(16) NOT NULL DEFAULT 'g3',
   score DECIMAL(6,2) NOT NULL DEFAULT 0,
   passed TINYINT(1) NOT NULL DEFAULT 0,
   total_questions INT NOT NULL DEFAULT 0,
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS chinese_exam_records (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_exam_records_user_created (user_id, created_at),
   KEY idx_exam_records_user_lesson (user_id, lesson_id),
+  KEY idx_exam_records_user_grade (user_id, grade),
   UNIQUE KEY uk_chinese_exam_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
