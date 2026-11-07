@@ -241,7 +241,11 @@ export class ChineseStorage {
     const id = String(questionId || '').trim();
     if (!id || id.length > 100) throw Object.assign(new Error('错题记录无效'), { status: 400 });
     await pool.execute<ResultSetHeader>(
-      'UPDATE chinese_wrong_questions SET is_resolved=1, resolved_at=CURRENT_TIMESTAMP WHERE user_id=? AND question_id=?',
+      `UPDATE chinese_wrong_questions
+       SET correct_count=correct_count + IF(is_resolved=0,1,0),
+           resolved_at=IF(is_resolved=0,CURRENT_TIMESTAMP,resolved_at),
+           is_resolved=1
+       WHERE user_id=? AND question_id=?`,
       [userId, id],
     );
     return { questionId: id, resolved: true };
