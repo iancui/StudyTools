@@ -250,6 +250,11 @@ export class ChineseStorage {
     if (!content) throw Object.assign(new Error('请先填写作文内容'), { status: 400 });
     if ([...content].length > 30000) throw Object.assign(new Error('作文内容过长，请分段保存'), { status: 400 });
     const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
+    const essayId = typeof body.essayId === 'string' ? body.essayId.slice(0, 100) : null;
+    const title = typeof body.title === 'string' ? body.title.slice(0, 200) : null;
+    const prompt = typeof body.prompt === 'string' ? body.prompt.slice(0, 10000) : null;
+    const feedbackJson = JSON.stringify(body.feedback ?? null);
+    if (feedbackJson.length > 20000) throw Object.assign(new Error('作文反馈内容过长'), { status: 400 });
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_essay_records
        (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,request_key,status)
