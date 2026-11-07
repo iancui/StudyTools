@@ -4,6 +4,7 @@
 |---|---|---|
 | users | 不建表 | 使用学海 users.id VARCHAR(36)，按 username/email 对账；绝不迁移旧用户主键 |
 | user_progress | chinese_user_progress | grade、semester、textbook_version、current_lesson_id、total_study_minutes；旧 ink_drops/streak_days/checkin 不导入 |
+| localStorage.previewedItemIds | chinese_preview_records | 旧浏览器导出数据中可识别的预习完成项按 guide_id 导入；旧 DB 只有 preview_count，无具体 ID |
 | user_character_progress | chinese_character_progress | (user_id, character_id) 唯一；保留 mastered 与练习统计 |
 | user_word_progress | chinese_word_progress | (user_id, word_id) 唯一；保留 mastered 与练习统计 |
 | user_sentence_progress | chinese_sentence_progress | (user_id, sentence_id) 唯一；保留 completed 与练习统计 |
