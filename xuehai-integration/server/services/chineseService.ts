@@ -44,11 +44,15 @@ export class ChineseService {
       throw Object.assign(new Error('测验题目已变化，请刷新后重新作答'), { status: 400 });
     }
     let correct = 0;
+    const gradedAnswers: Record<string, { correct: boolean; correctAnswer: string; explanation: string }> = {};
     for (const question of expected) {
       const canonical = question.type === 'choice' && typeof question.correctAnswer === 'number'
         ? question.options?.[question.correctAnswer]
         : String(question.correctAnswer);
-      if (String(submitted[question.id] ?? '').trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) correct += 1;
+      const correctAnswer = String(canonical ?? '').replace(/^[A-D]\.\s*/, '').trim();
+      const isCorrect = String(submitted[question.id] ?? '').replace(/^[A-D]\.\s*/, '').trim().toLowerCase() === correctAnswer.toLowerCase();
+      if (isCorrect) correct += 1;
+      gradedAnswers[question.id] = { correct: isCorrect, correctAnswer, explanation: String(question.explanation || '').replace(/选项\s*[A-D]/g, '对应选项') };
     }
     const total = expected.length;
     const score = total ? Math.round((correct / total) * 100) : 0;
@@ -61,10 +65,7 @@ export class ChineseService {
     // 错题由服务端根据可信题库答案自动落库；同一测验重试使用相同 requestKey，避免重复增加错题次数。
     for (const question of expected) {
       const studentAnswer = String(submitted[question.id] ?? '');
-      const canonical = question.type === 'choice' && typeof question.correctAnswer === 'number'
-        ? question.options?.[question.correctAnswer]
-        : String(question.correctAnswer);
-      if (studentAnswer.trim().toLowerCase() === String(canonical ?? '').trim().toLowerCase()) {
+      if (gradedAnswers[question.id].correct) {
         await ChineseStorage.resolveWrongQuestion(userId, question.id);
         continue;
       }
@@ -75,13 +76,13 @@ export class ChineseService {
         questionContent: JSON.stringify({
           question: question.question,
           options: question.options,
-          correctAnswer: canonical,
+          correctAnswer: gradedAnswers[question.id].correctAnswer,
           studentAnswer,
         }),
       });
     }
     const pointsAward = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '尚未关联正式课次，暂不发放积分' };
-    return { ...exam, grade, pointsAward };
+    return { ...exam, grade, gradedAnswers, pointsAward };
   }
   static listEssays(userId: string) { return ChineseStorage.listEssays(userId); }
   static createEssay(userId: string, body: Record<string, unknown>) { return ChineseStorage.createEssay(userId, body); }
