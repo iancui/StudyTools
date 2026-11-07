@@ -45,3 +45,7 @@ export class ChinesePreviewController {
   static list(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id)=>ChineseService.listPreviews(id)); }
   static complete(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,body)=>ChineseService.completePreview(id,body)); }
 }
+
+export class ChineseStudySessionController {
+  static create(req: AuthenticatedRequest,res: Response,next: NextFunction) { return run(req,res,next,(id,body)=>ChineseService.recordStudySession(id,body)); }
+}
