@@ -116,3 +116,10 @@ export const getChineseExams = () => chineseRequest<any[]>('/exams');
 
 /** 获取作文练习历史。 */
 export const getChineseEssays = () => chineseRequest<any[]>('/essays');
+
+/** 获取已完成的预习导读记录。 */
+export const getChinesePreviews = () => chineseRequest<Array<{guide_id:string;completed_at:string}>>('/previews');
+
+/** 保存一条预习完成记录，不产生积分。 */
+export const completeChinesePreview = (guideId: string) =>
+  chineseRequest<unknown>('/previews', { method: 'POST', body: JSON.stringify({ guideId }) });
