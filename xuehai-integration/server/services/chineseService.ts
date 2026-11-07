@@ -72,7 +72,7 @@ export class ChineseService {
       await ChineseStorage.saveWrongQuestion(userId, {
         questionId: question.id,
         questionType: question.category,
-        requestId: `${requestId.replace(/-/g, '').slice(0, 16)}:${question.id.slice(0, 40)}`,
+        requestId: `exam:${stableHash(requestId).toString(16)}:${question.id.slice(0, 40)}`,
         questionContent: JSON.stringify({
           question: question.question,
           options: question.options,
