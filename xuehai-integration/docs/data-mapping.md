@@ -8,7 +8,7 @@
 | user_word_progress | chinese_word_progress | (user_id, word_id) 唯一；保留 mastered 与练习统计 |
 | user_sentence_progress | chinese_sentence_progress | (user_id, sentence_id) 唯一；保留 completed 与练习统计 |
 | user_wrong_questions | chinese_wrong_questions | 保留题干快照、错/对次数、resolved_at |
-| exam_records | chinese_exam_records | score、passed、lesson_id、answers_json、题数与耗时 |
+| exam_records | chinese_exam_records | score、passed、answers_json、题数与耗时；旧 exam_id 不默认当作 lesson_id，需人工核对后映射 |
 | essay_practices | chinese_essay_records | 原文、题目、字数、评分与 feedback JSON |
 | checkin_records | 不建表 | 全部走学海 /api/points/* |
 | user_badges | 不建表 | 全部走学海积分/徽章能力 |
