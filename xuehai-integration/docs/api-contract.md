@@ -7,7 +7,7 @@
 | 方法 | 路径 | 用途 | 积分 |
 |---|---|---|---|
 | GET | /api/chinese/progress | 获取年级、学期、教材版本、当前课次、累计学习分钟 | 无 |
-| PUT | /api/chinese/progress | 更新学习配置/分钟 | 无 |
+| PUT | /api/chinese/progress | 更新学习配置 | 无 |
 | GET | /api/chinese/characters | 生字进度列表 | 无 |
 | PUT | /api/chinese/characters | 批量保存 masteredIds | 无 |
 | POST | /api/chinese/characters/practice | 记录一次生字练习 | 无 |
