@@ -367,7 +367,7 @@ export function ChineseExamView({ctx}:ViewProps){
           <input type="radio" name={q.id} checked={answers[q.id]===option} disabled={Boolean(result)} onChange={()=>setAnswers(v=>({...v,[q.id]:option}))}/>{option}
         </label>)}
         {q.type==='fill'&&<input value={answers[q.id]||''} disabled={Boolean(result)} onChange={e=>setAnswers(v=>({...v,[q.id]:e.target.value}))} className="w-full rounded-lg border px-3 py-2" placeholder="请输入答案"/>}
-        {result&&<Notice error={!graded[q.id]}>{graded[q.id]?'回答正确。':'需要巩固。'} 参考答案：{answer}。{q.explanation.replace(/[A-D]\\s*为[^。；]*[。；]?/g,'')}</Notice>}
+        {result&&<Notice error={!graded[q.id]}>{graded[q.id]?'回答正确。':'需要巩固。'} 参考答案：{answer}。{q.explanation.replace(/[A-D]\s*为[^。；]*[。；]?/g,'')}</Notice>}
       </Card>)}
     </div>
     <button disabled={busy||!questions.length||Boolean(result)} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>
