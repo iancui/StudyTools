@@ -916,7 +916,7 @@ export const CHINESE_EXAM_BANK = {
         "小红由衷地赞叹道：“春天真美啊！”。"
       ],
       "correctAnswer": 0,
-      "explanation": "感叹号在引号内部，提示语在后，句末用句号收尾，A项格式完全正确。",
+      "explanation": "感叹号放在引号内部，提示语置于引语之后，整句收尾标点使用恰当。",
       "gradeId": "g3",
       "difficulty": "medium"
     }
@@ -1142,7 +1142,7 @@ export const CHINESE_EXAM_BANK = {
         "端正态度 · 养成习惯 · 发展智力"
       ],
       "correctAnswer": 3,
-      "explanation": "D项“端正态度”、“养成习惯”、“发展智力”动宾搭配严谨规范。A项“改善生活”和“提高水平”虽通，但D项词语搭配最为规整典范。",
+      "explanation": "“端正态度”、“养成习惯”、“发展智力”均为恰当的动宾搭配，词语组合自然规范。",
       "gradeId": "g4",
       "difficulty": "hard"
     }
@@ -1352,7 +1352,7 @@ export const CHINESE_EXAM_BANK = {
         "宽阔的操场上，同学们正在热烈地讨论着即将举办的运动会。"
       ],
       "correctAnswer": 3,
-      "explanation": "A项滥用介词“经过……使……”缺少主语；B项“五颜六色”与“红花”矛盾；C项两面对一面（能否 vs 是）；D项语句通顺无语病。",
+      "explanation": "需要避免介词结构造成主语残缺、修饰语与中心词语义矛盾，以及两面对一面等问题；正确句式结构完整、语意通顺。",
       "gradeId": "g5",
       "difficulty": "hard"
     }
