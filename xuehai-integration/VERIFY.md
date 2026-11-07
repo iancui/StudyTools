@@ -7,8 +7,8 @@
 3. [ ] 不新增 users/auth/refresh-token 表或认证路由。
 4. [ ] 不把学习进度写入 localStorage；仅允许 linguastep_token、引导标记、学科偏好和 UI 状态。
 5. [ ] 积分、签到、连续签到、徽章、会员字段不进入迁移 snapshot。
-6. [ ] 课程内容保留源 gradeId 和稳定 item id。
-7. [ ] API 请求统一经 web/features/chinese/api.ts，路由固定为 /api/chinese/...；会话沿用学海 token。
+6. [ ] 课程 JSON 覆盖 12 年级；稳定新 ID 与 legacyId 对照，未导入旧积分等级/徽章配置。
+7. [ ] API 请求统一经 web/features/chinese/api.ts，路由固定为 /api/chinese/...；会话沿用学海 token。服务端/前端可信题库 ID 必须一致。
 8. [ ] 迁移计划是纯函数，无 DB IO；目标 userId 必须由学海认证流程提供。
 
 ## 宿主接入验收（接入后执行）
