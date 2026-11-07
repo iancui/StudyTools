@@ -8,7 +8,7 @@
 4. **进度真源**：没有在语文运行时写入 localStorage 学习进度；只保留学海 token。历史迁移读取由用户显式导出的旧数据，不自动读取浏览器存储。通过（静态检查）。
 5. **SQL 安全**：021_chinese.sql 仅 CREATE TABLE IF NOT EXISTS；不含破坏性删表语句、无外键；user_id VARCHAR(36)，业务 id VARCHAR(64)。通过（静态检查）。
 6. **参数化 SQL**：chineseStorage.ts 使用 mysql2 execute 参数占位符；动态表名/列名仅来自代码内固定资源白名单。通过（静态检查，未连真实数据库）。
-7. **路由与响应**：routes/chinese.ts 注册 20 个端点；Controller 统一返回 { code: 200, message: 'success', data }，异常 next(e)。通过（静态核对）；尚未接入学海 routes/index.ts，需应用 patch 05。
+7. **路由与响应**：routes/chinese.ts 注册 21 个端点；Controller 统一返回 { code: 200, message: 'success', data }，异常 next(e)。通过（静态核对）；尚未接入学海 routes/index.ts，需应用 patch 05。
 8. **文档与人工验收**：5 个宿主 patch 文件、API 契约、数据映射和 5 步人工验收文档已交付。人工验收未执行，目标仓库未提供。部分通过。
 
 ## 5 步人工验收（待学海仓库执行）
