@@ -179,8 +179,7 @@ export class ChineseStorage {
       'SELECT id, lesson_id, score, passed, total_questions, correct_questions, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
       [userId, requestKey],
     );
-    // Client-side answer keys are not trusted for points. Until the server owns
-    // the canonical question bank, the score is provisional and earns no points.
+    // The service has already verified every answer against the server-owned question bank.
     return { ...(rows[0] || {}), lessonId, requestKey, verified, provisionalPassed: score >= 70, passed };
   }
 
