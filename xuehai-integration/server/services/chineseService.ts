@@ -12,6 +12,8 @@ export class ChineseService {
     if (!itemId || !eventId || eventId.length > 64 || (body.result !== 'correct' && body.result !== 'wrong')) throw Object.assign(new Error('练习信息不完整'), { status: 400 });
     return ChineseStorage.recordPractice(userId, kind, itemId, body.result, eventId);
   }
+  static listPreviews(userId: string) { return ChineseStorage.listPreviews(userId); }
+  static completePreview(userId: string, body: Record<string, unknown>) { return ChineseStorage.completePreview(userId, String(body.guideId || '')); }
   static listWrong(userId: string) { return ChineseStorage.listWrongQuestions(userId); }
   static saveWrong(userId: string, body: Record<string, unknown>) { return ChineseStorage.saveWrongQuestion(userId, body); }
   static listExams(userId: string) { return ChineseStorage.listExams(userId); }
