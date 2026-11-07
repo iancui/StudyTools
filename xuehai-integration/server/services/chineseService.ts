@@ -17,7 +17,7 @@ export class ChineseService {
   static listExams(userId: string) { return ChineseStorage.listExams(userId); }
   static async createExam(userId: string, body: Record<string, unknown>) {
     const exam = await ChineseStorage.createExam(userId, body);
-    let pointsAward = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '待服务端题库校验' };
+    let pointsAward: { awarded: boolean; amount: number; balance: number; todayEarned: number; reason?: string } = { awarded: false, amount: 0, balance: 0, todayEarned: 0, reason: '待服务端题库校验' };
     // 安全保护：当前题库仍在前端快照，客户端成绩不可作为积分依据。
     // 待服务端接入可信题库并独立核对答案后，再开放达标奖励。
     if (exam.verified && exam.passed && exam.lessonId) {
