@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
-import { speakChinese } from '../speech.ts';
+import { speakChinese, stopChineseSpeech } from '../speech.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
 import {
   getChineseProgress, saveChineseProgress, getChineseCharacters, saveChineseCharacters,
@@ -12,6 +12,7 @@ import {
 
 interface ViewProps { ctx: { navigate: (route: string) => void } }
 function Frame({ctx,title,subtitle,children}:{ctx:ViewProps['ctx'];title:string;subtitle:string;children?:ReactNode}) {
+  useEffect(()=>()=>stopChineseSpeech(),[]);
   return <section className="space-y-5">
     <header className="rounded-3xl border border-[#E7EEF8] bg-white p-6 shadow-sm">
       <p className="text-sm text-[#7890B0]">CHINESE · 语文学习</p><h1 className="mt-2 text-2xl font-bold">{title}</h1><p className="mt-2 text-sm text-[#607797]">{subtitle}</p>
