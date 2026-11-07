@@ -261,20 +261,102 @@ export function ChineseSentencesView({ctx}:ViewProps){
 function evaluateEssayDraft(content:string){
   const text=content.trim();
   const paragraphs=text.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
-  const sentences=(text.match(/[。！？!?；;]/g)||[]).length;
+  const sentenceCount=(text.match(/[。！？!?；;]/g)||[]).length;
+  const chineseCount=(text.match(/[\u3400-\u9fff]/g)||[]).length;
+  const longSentences=text.split(/[。！？!?；;]/).filter(x=>[...x.trim()].length>60).length;
   const suggestions:string[]=[];
-  if([...text].length<200)suggestions.push('篇幅偏短：可以补充具体场景、人物动作或细节描写。');
+  if(chineseCount<200)suggestions.push('篇幅偏短：可以补充人物动作、环境变化、对话或具体细节。');
   if(paragraphs.length<3)suggestions.push('建议分段：尝试安排开头点题、中间展开、结尾收束。');
-  if(sentences<4)suggestions.push('注意句子层次：检查标点，避免多个意思挤在同一句里。');
-  if(!/(首先|其次|然后|因此|然而|同时|最后|例如|比如)/.test(text))suggestions.push('可以加入恰当的过渡词，让段落之间的逻辑更清楚。');
-  if(!suggestions.length)suggestions.push('结构和基本表达检查较完整；请再检查错别字、标点和题意是否扣紧。');
-  return {characterCount:[...text].length,paragraphCount:paragraphs.length,sentenceCount:sentences,suggestions};
+  if(sentenceCount<4)suggestions.push('句子数量较少：可以增加描写句、解释句或自己的感受。');
+  if(longSentences>2)suggestions.push('有较多长句：检查是否可以拆分，避免多个意思挤在同一句里。');
+  if(/([，。！？；])\1/.test(text))suggestions.push('发现连续重复标点，请检查标点使用。');
+  if(!/(首先|其次|然后|因此|然而|同时|最后|例如|比如|一方面|另一方面)/.test(text))suggestions.push('可以加入恰当的过渡词，让段落之间的逻辑更清楚。');
+  if(!suggestions.length)suggestions.push('基本结构检查较完整；请再检查错别字、标点和题意是否扣紧。');
+  return {characterCount:[...text].length,chineseCount,paragraphCount:paragraphs.length,sentenceCount,longSentences,suggestions};
 }
 
 export function ChineseEssaysView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const items=ESSAYS_DATA[grade]||[];const [selectedId,setSelectedId]=useState(''),[content,setContent]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[requestId,setRequestId]=useState(()=>crypto.randomUUID());const selected=items.find(x=>x.id===selectedId)||items[0];const feedback=useMemo(()=>evaluateEssayDraft(content),[content]);
-  const submit=async()=>{if(!selected||!content.trim()){setNotice('请先选择题目并完成写作。');return;}setBusy(true);try{await submitChineseEssay({requestId,essayId:selected.id,title:selected.title,prompt:selected.promptText,content,feedback:{overview:'规则化写作自检（非 AI 评分）',...feedback}});setNotice('作文已保存，可在学习档案中查看。');setRequestId(crypto.randomUUID());}catch(e){setNotice(e instanceof Error?e.message:'作文保存失败');}finally{setBusy(false);}};
-  return <Frame ctx={ctx} title="作文练习" subtitle="先审题列纲，再完成写作；保存原文供后续批改。"><GradePicker value={grade} error={gradeError} onChange={v=>{void setGrade(v);setSelectedId('');setContent('');setRequestId(crypto.randomUUID());}}/><div className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]"><div className="space-y-2">{items.map(x=><button key={x.id} onClick={()=>{setSelectedId(x.id);setContent('');setRequestId(crypto.randomUUID());}} className={`w-full rounded-xl border p-3 text-left text-sm ${selected?.id===x.id?'border-blue-400 bg-blue-50':'border-[#E7EEF8] bg-white'}`}>{x.title}</button>)}</div>{selected&&<Card title={selected.title} meta={selected.gradeTier}><p>写作任务：{selected.promptText}</p><p>提纲建议：{selected.outlineAdvice.join('；')}</p><p>写作技巧：{selected.keyTechniques.join('、')}</p><details className="rounded-xl bg-[#F7FAFF] p-3"><summary className="cursor-pointer font-medium">展开范文参考</summary><h3 className="font-semibold">{selected.modelEssay.title}</h3>{selected.modelEssay.paragraphs.map((p,i)=><p key={i}>{p}</p>)}</details><textarea rows={12} value={content} onChange={e=>{setContent(e.target.value);setRequestId(crypto.randomUUID());}} placeholder="在这里完成作文…" className="w-full rounded-xl border p-3 leading-7"/><div className="rounded-xl bg-[#F7FAFF] p-3"><p className="font-medium">写作自检（不代表考试评分）</p><p>字数 {feedback.characterCount} · 段落 {feedback.paragraphCount} · 句末标点 {feedback.sentenceCount}</p><ul className="list-disc pl-5">{feedback.suggestions.map((item,i)=><li key={i}>{item}</li>)}</ul></div><button disabled={busy||!content.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-4 py-2 text-white disabled:opacity-50">{busy?'保存中…':'保存作文'}</button></Card>}</div>{notice&&<Notice>{notice}</Notice>}</Frame>;
+  const {grade,setGrade,gradeError}=useGrade();
+  const items=ESSAYS_DATA[grade]||[];
+  const [selectedId,setSelectedId]=useState('');
+  const [content,setContent]=useState('');
+  const [notice,setNotice]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
+  const [history,setHistory]=useState<any[]>([]);
+  const [historyLoading,setHistoryLoading]=useState(true);
+  const [historyError,setHistoryError]=useState('');
+  const selected=items.find(x=>x.id===selectedId)||items[0];
+  const feedback=useMemo(()=>evaluateEssayDraft(content),[content]);
+
+  const refreshHistory=async()=>{
+    setHistoryLoading(true);
+    try{setHistory(await getChineseEssays());setHistoryError('');}
+    catch(e){setHistoryError(e instanceof Error?e.message:'历史作文暂时无法读取。');}
+    finally{setHistoryLoading(false);}
+  };
+  useEffect(()=>{void refreshHistory();},[]);
+
+  const submit=async()=>{
+    if(!selected||!content.trim()){setNotice('请先选择题目并完成写作。');return;}
+    if([...content].length>30000){setNotice('作文内容较长，请分段保存后再提交。');return;}
+    setBusy(true);setNotice('');
+    try{
+      await submitChineseEssay({
+        requestId,essayId:selected.id,title:selected.title,prompt:selected.promptText,content,
+        feedback:{overview:'规则化写作自检（非 AI 评分）',...feedback},
+      });
+      setNotice('作文已保存，可在学习档案中查看。');
+      setRequestId(crypto.randomUUID());
+      await refreshHistory();
+    }catch(e){setNotice(e instanceof Error?e.message:'作文保存失败；可以安全重试。');}
+    finally{setBusy(false);}
+  };
+
+  const insertOutline=()=>{
+    if(!selected)return;
+    const outline=selected.outlineAdvice.map((line,index)=>(index+1)+'. '+line).join('\n');
+    setContent(previous=>previous.trim()?previous+'\n\n'+outline:outline);
+    setRequestId(crypto.randomUUID());
+  };
+  const loadDraft=(record:any)=>{
+    const matched=items.find(x=>x.id===record.essay_id);
+    if(matched)setSelectedId(matched.id);
+    setContent(String(record.content||''));
+    setRequestId(crypto.randomUUID());
+    setNotice('已载入历史作文内容；保存后会生成一条新的练习记录。');
+  };
+
+  return <Frame ctx={ctx} title="作文练习" subtitle="先审题列纲，再完成写作；保存原文与规则化自检反馈，不虚构 AI 评分。">
+    <GradePicker value={grade} error={gradeError} onChange={v=>{void setGrade(v);setSelectedId('');setContent('');setRequestId(crypto.randomUUID());}}/>
+    <div className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]">
+      <div className="space-y-2">{items.map(x=><button key={x.id} onClick={()=>{setSelectedId(x.id);setContent('');setRequestId(crypto.randomUUID());}} className={'w-full rounded-xl border p-3 text-left text-sm '+(selected?.id===x.id?'border-blue-400 bg-blue-50':'border-[#E7EEF8] bg-white')}>{x.title}</button>)}</div>
+      {selected&&<Card title={selected.title} meta={selected.gradeTier}>
+        <p>写作任务：{selected.promptText}</p>
+        <p>提纲建议：{selected.outlineAdvice.join('；')}</p>
+        <p>写作技巧：{selected.keyTechniques.join('、')}</p>
+        <button type="button" onClick={insertOutline} className="rounded-lg border px-3 py-2 text-sm">将提纲插入写作区</button>
+        <details className="rounded-xl bg-[#F7FAFF] p-3"><summary className="cursor-pointer font-medium">展开范文参考</summary><h3 className="font-semibold">{selected.modelEssay.title}</h3>{selected.modelEssay.paragraphs.map((p,i)=><p key={i}>{p}</p>)}</details>
+        {selected.sampleMaterials?.length>0&&<details className="rounded-xl bg-[#F7FAFF] p-3"><summary className="cursor-pointer font-medium">素材与名句</summary>{selected.sampleMaterials.map((x,i)=><p key={i}><strong>{x.title}</strong>：{x.quote}</p>)}</details>}
+        <textarea rows={14} maxLength={30000} value={content} onChange={e=>{setContent(e.target.value);setRequestId(crypto.randomUUID());}} placeholder="在这里完成作文；建议分段，注意开头点题、中间展开、结尾收束…" className="w-full rounded-xl border p-3 leading-7"/>
+        <div className="rounded-xl bg-[#F7FAFF] p-3">
+          <p className="font-medium">写作自检（不代表考试评分）</p>
+          <p>总字数 {feedback.characterCount} · 汉字 {feedback.chineseCount} · 段落 {feedback.paragraphCount} · 句末标点 {feedback.sentenceCount} · 长句 {feedback.longSentences}</p>
+          <ul className="list-disc pl-5">{feedback.suggestions.map((item,i)=><li key={i}>{item}</li>)}</ul>
+        </div>
+        <button disabled={busy||!content.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-4 py-2 text-white disabled:opacity-50">{busy?'保存中…':'保存作文'}</button>
+      </Card>}
+    </div>
+    <Card title="最近作文记录" meta={historyLoading?'读取中…':history.length+' 条'}>
+      {historyError&&<Notice error>{historyError}</Notice>}
+      {history.slice(0,8).map((record:any,index:number)=><div key={record.id||index} className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E7EEF8] py-2 last:border-0">
+        <div><p className="font-medium">{record.title||'作文练习'}</p><p className="text-xs text-[#7890B0]">{record.word_count||0} 字 · {record.created_at||''}</p></div>
+        <button onClick={()=>loadDraft(record)} className="rounded-lg border px-3 py-1.5 text-sm">载入内容</button>
+      </div>)}
+      {!historyLoading&&!history.length&&!historyError&&<p className="text-sm text-[#7890B0]">还没有保存的作文，完成一次写作后会显示在这里。</p>}
+    </Card>
+    {notice&&<Notice>{notice}</Notice>}
+  </Frame>;
 }
 
 export function ChinesePreviewView({ctx}:ViewProps){
