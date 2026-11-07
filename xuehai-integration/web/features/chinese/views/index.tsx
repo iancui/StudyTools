@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
 import { speakChinese, stopChineseSpeech } from '../speech.ts';
 import { getReviewSchedule, sortReviewQueue } from '../reviewAlgorithm.ts';
-import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
+import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
+import { CHINESE_EXAM_BANK } from '../data/examBank.ts';
 import {
   getChineseProgress, saveChineseProgress, getChineseCharacters, saveChineseCharacters,
   getChineseWords, saveChineseWords, getChineseSentences, saveChineseSentences,
@@ -340,7 +341,7 @@ function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.
 
 export function ChineseExamView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const [answers,setAnswers]=useState<Record<string,string>>({}),[result,setResult]=useState<{score:number;correct:number;total:number}|null>(null),[graded,setGraded]=useState<Record<string,boolean>>({}),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[requestId,setRequestId]=useState(()=>crypto.randomUUID()),[startedAt,setStartedAt]=useState(()=>Date.now());
-  const questions=useMemo(()=>([...(EXAMS_DATA[grade]||[])].sort((a,b)=>hash(a.id)-hash(b.id)).slice(0,10).map(stableQuestion)),[grade]);
+  const questions=useMemo(()=>([...(CHINESE_EXAM_BANK[grade]||[])].sort((a,b)=>hash(a.id)-hash(b.id)).slice(0,10).map(stableQuestion)),[grade]);
   const submit=async()=>{
     if(!questions.length)return;
     if(questions.some(({q})=>!String(answers[q.id]||'').trim())){setNotice('还有题目没有作答，请检查后再提交。');return;}
