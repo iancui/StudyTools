@@ -151,7 +151,7 @@ export function ChineseSentencesView({ctx}:ViewProps){
     setBusyId(item.id);
     try{
       const characterCount=[...content].length;
-      const paragraphCount=content.split(/\\n\\s*\\n/).filter(Boolean).length;
+      const paragraphCount=content.split(/\n\s*\n/).filter(Boolean).length;
       await submitChineseEssay({
         requestId,essayId:item.id,title:item.title,
         prompt:item.practicePrompt,content,
