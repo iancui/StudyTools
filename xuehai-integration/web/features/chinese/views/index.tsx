@@ -18,7 +18,7 @@ function Frame({ctx,title,subtitle,children}:{ctx:ViewProps['ctx'];title:string;
     {children}<button type="button" onClick={()=>ctx.navigate('/chinese')} className="text-sm text-blue-700">返回语文首页</button>
   </section>;
 }
-function useGrade(){const [grade,setGrade]=useState<GradeId>('g3');return {grade,setGrade};}
+function useGrade(){const [grade,setGrade]=useState<GradeId>('g3');useEffect(()=>{let live=true;void getChineseProgress().then((p:any)=>{if(live&&p&&GRADES_LIST.some(x=>x.id===p.grade))setGrade(p.grade);}).catch(()=>{});return()=>{live=false;};},[]);return {grade,setGrade};}
 function GradePicker({value,onChange}:{value:GradeId;onChange:(v:GradeId)=>void}){
   return <label className="flex items-center gap-2 text-sm text-[#607797]">学习年级
     <select value={value} onChange={e=>onChange(e.target.value as GradeId)} className="rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-[#29466F]">
