@@ -38,6 +38,6 @@
 - 详细进度：字符/词语使用 `{ masteredIds: string[] }`；句子使用 `{ completedIds: string[] }`。
 - 练习事件：`{ itemId: string, eventId: string, result: 'correct' | 'wrong' }`；eventId 用于服务端幂等。
 - 测验：`{ lessonId, requestId, score, totalQuestions, correctQuestions, durationSeconds, answers }`。requestId 用于防止重复提交；服务端必须以可信题库重算分数后才可发积分。练习事件为 `{ itemId, eventId, result }`，eventId 全局唯一（用户范围内）。
-- 作文：`{ essayId, title, prompt, content, feedback }`。
+- 作文：`{ requestId, essayId, title, prompt, content, feedback }`。
 
 此表是按本次契约定义的接入目标；后续实现端点数量必须与 `routes/chinese.ts` 实际注册数一致。
