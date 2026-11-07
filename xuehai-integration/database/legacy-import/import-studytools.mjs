@@ -31,7 +31,7 @@ if (progressJsonArg) {
   } else {
     const entries = Array.isArray(raw) ? raw.map((entry) => [entry.key, entry.value]) : Object.entries(raw || {});
     for (const [key, value] of entries) {
-      const match = String(key || '').match(/^moyun_chinese_learning_v1:user:(\\d+)$/);
+      const match = String(key || '').match(/^moyun_chinese_learning_v1:user:(\d+)$/);
       if (match) localProgressByUser.set(match[1], decode(value));
     }
   }
