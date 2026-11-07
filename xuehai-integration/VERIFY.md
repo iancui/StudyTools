@@ -4,7 +4,7 @@
 
 1. [ ] 不新增 npm 依赖，package.json 与锁文件保持不变。
 2. [ ] 原有 `src/` 与 `server/` 不改动。
-3. [ ] 不新增 users/auth/refresh-token 表、路由或 token 存储。
+3. [ ] 不新增 users/auth/refresh-token 表或认证路由。
 4. [ ] 不把学习进度写入 localStorage；仅允许 linguastep_token、引导标记、学科偏好和 UI 状态。
 5. [ ] 积分、签到、连续签到、徽章、会员字段不进入迁移 snapshot。
 6. [ ] 课程内容保留源 gradeId 和稳定 item id。
