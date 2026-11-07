@@ -135,11 +135,11 @@ async function importUser(oldUser) {
     );
     for (const row of wrongs) await connection.execute(
       `INSERT INTO chinese_wrong_questions
-       (id,user_id,question_id,question_type,question_content,wrong_count,correct_count,is_resolved,first_wrong_at,last_wrong_at,resolved_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)
+       (id,user_id,question_id,question_type,question_content,wrong_count,correct_count,is_resolved,first_wrong_at,last_wrong_at,resolved_at,request_key)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE wrong_count=VALUES(wrong_count), correct_count=VALUES(correct_count),
        is_resolved=VALUES(is_resolved), last_wrong_at=VALUES(last_wrong_at), resolved_at=VALUES(resolved_at)`,
-      [randomUUID(),targetUserId,row.question_id,row.question_type,row.question_content,row.wrong_count,row.correct_count,row.is_resolved,row.first_wrong_at,row.last_wrong_at,row.resolved_at],
+      [randomUUID(),targetUserId,row.question_id,row.question_type,row.question_content,row.wrong_count,row.correct_count,row.is_resolved,row.first_wrong_at,row.last_wrong_at,row.resolved_at,`legacy-db-wrong:${row.id}`],
     );
     for (const row of exams) await connection.execute(
       `INSERT INTO chinese_exam_records
@@ -185,9 +185,9 @@ async function importUser(oldUser) {
     if (Array.isArray(local.wrongQuestionIds)) {
       for (const questionId of [...new Set(local.wrongQuestionIds.filter((id) => typeof id === 'string' && id.length > 0))]) {
         await connection.execute(
-          `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content)
-           VALUES (?,?,?,'legacy',NULL) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
-          [randomUUID(), targetUserId, questionId],
+          `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content,request_key)
+           VALUES (?,?,?,'legacy',NULL,?) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
+          [randomUUID(), targetUserId, questionId, `legacy-local-wrong:${questionId}`],
         );
       }
     }
