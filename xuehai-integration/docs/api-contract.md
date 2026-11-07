@@ -34,7 +34,7 @@
 
 ## 请求字段
 
-- 进度更新：`grade`、`semester`、`textbookVersion`、`currentLessonId`、`studyMinutesDelta`。
+- 进度更新：`grade`、`semester`、`textbookVersion`、`currentLessonId`；学习分钟只能通过独立的幂等计时会话写入。
 - 详细进度：字符/词语使用 `{ masteredIds: string[] }`；句子使用 `{ completedIds: string[] }`。
 - 练习事件：`{ itemId: string, eventId: string, result: 'correct' | 'wrong' }`；eventId 用于服务端幂等。
 - 测验：`{ lessonId, requestId, score, totalQuestions, correctQuestions, durationSeconds, answers }`。requestId 用于防止重复提交；服务端必须以可信题库重算分数后才可发积分。练习事件为 `{ itemId, eventId, result }`，eventId 全局唯一（用户范围内）。
