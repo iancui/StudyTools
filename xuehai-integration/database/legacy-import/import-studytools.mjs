@@ -5,6 +5,7 @@
  */
 import { createPool } from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 const apply = process.argv.includes('--apply');
 const confirmed = process.argv.includes('--confirm');
@@ -18,6 +19,24 @@ const oldPool = createPool({
   database: process.env.STUDYTOOLS_DB_NAME,
   connectionLimit: 3,
 });
+
+const progressJsonArg = process.argv.find((arg) => arg.startsWith('--progress-json='));
+const localProgressByUser = new Map();
+if (progressJsonArg) {
+  const filePath = progressJsonArg.slice('--progress-json='.length);
+  const raw = JSON.parse(await readFile(filePath, 'utf8'));
+  const decode = (value) => typeof value === 'string' ? JSON.parse(value) : value;
+  if (raw && raw.legacyUserId != null && raw.progress) {
+    localProgressByUser.set(String(raw.legacyUserId), decode(raw.progress));
+  } else {
+    const entries = Array.isArray(raw) ? raw.map((entry) => [entry.key, entry.value]) : Object.entries(raw || {});
+    for (const [key, value] of entries) {
+      const match = String(key || '').match(/^moyun_chinese_learning_v1:user:(\\d+)$/);
+      if (match) localProgressByUser.set(match[1], decode(value));
+    }
+  }
+}
+
 const newPool = createPool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT || 3306),
@@ -53,6 +72,7 @@ async function importUser(oldUser) {
 
   const targetUserId = String(matches[0].id);
   const oldId = oldUser.id;
+  const local = localProgressByUser.get(String(oldId)) || {};
   const [progress, chars, words, sentences, wrongs, exams, essays] = await Promise.all([
     select(oldPool, 'SELECT * FROM user_progress WHERE user_id = ?', [oldId]),
     select(oldPool, 'SELECT * FROM user_character_progress WHERE user_id = ?', [oldId]),
@@ -66,6 +86,10 @@ async function importUser(oldUser) {
     progress: progress.length, characters: chars.length, words: words.length,
     sentences: sentences.length, wrongQuestions: wrongs.length,
     exams: exams.length, essays: essays.length,
+    localPreviewed: Array.isArray(local.previewedItemIds) ? local.previewedItemIds.length : 0,
+    localMasteredCharacters: Array.isArray(local.masteredCharacterIds) ? local.masteredCharacterIds.length : 0,
+    localMasteredWords: Array.isArray(local.masteredWordIds) ? local.masteredWordIds.length : 0,
+    localCompletedSentences: Array.isArray(local.completedSentenceIds) ? local.completedSentenceIds.length : 0,
   };
 
   if (!apply) return { status: 'dry-run', username: oldUser.username, targetUserId, counts };
@@ -73,13 +97,14 @@ async function importUser(oldUser) {
   const connection = await newPool.getConnection();
   try {
     await connection.beginTransaction();
-    const grade = oldUser.selected_grade || 'g3';
+    const grade = /^g([1-9]|1[0-2])$/.test(String(oldUser.selected_grade || local.selectedGrade || '')) ? (oldUser.selected_grade || local.selectedGrade) : 'g3';
+    const semester = local.selectedSemester === '下册' ? 's2' : 's1';
     await connection.execute(
       `INSERT INTO chinese_user_progress
         (user_id, grade, semester, textbook_version, current_lesson_id, total_study_minutes)
-       VALUES (?, ?, 's1', 'default', NULL, 0)
+       VALUES (?, ?, ?, 'default', NULL, 0)
        ON DUPLICATE KEY UPDATE grade = VALUES(grade)`,
-      [targetUserId, grade],
+      [targetUserId, grade, semester],
     );
 
     for (const row of chars) await connection.execute(
@@ -128,6 +153,42 @@ async function importUser(oldUser) {
        ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
       [randomUUID(),targetUserId,null,row.title,row.prompt,row.content,row.word_count,row.score,jsonValue({feedback:row.feedback,aiScore:row.ai_score}),`legacy-essay:${row.id}`,row.status,row.created_at,row.updated_at],
     );
+
+
+    // Browser-only progress arrays are imported only when the user explicitly
+    // supplied an export file. They are merged with DB rows, never used for identity.
+    const insertLocalIds = async (values, table, column, stateColumn, doneColumn) => {
+      if (!Array.isArray(values)) return;
+      for (const value of [...new Set(values.filter((item) => typeof item === 'string' && item.length > 0))]) {
+        await connection.execute(
+          `INSERT INTO ${table} (id,user_id,${column},${stateColumn},${doneColumn})
+           VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+           ON DUPLICATE KEY UPDATE ${stateColumn}=1, ${doneColumn}=COALESCE(${doneColumn},CURRENT_TIMESTAMP)`,
+          [randomUUID(), targetUserId, value, 1],
+        );
+      }
+    };
+    await insertLocalIds(local.masteredCharacterIds, 'chinese_character_progress', 'character_id', 'is_mastered', 'mastered_at');
+    await insertLocalIds(local.masteredWordIds, 'chinese_word_progress', 'word_id', 'is_mastered', 'mastered_at');
+    await insertLocalIds(local.completedSentenceIds, 'chinese_sentence_progress', 'sentence_id', 'is_completed', 'completed_at');
+    if (Array.isArray(local.previewedItemIds)) {
+      for (const guideId of [...new Set(local.previewedItemIds.filter((id) => typeof id === 'string' && id.length > 0))]) {
+        await connection.execute(
+          `INSERT INTO chinese_preview_records (id,user_id,guide_id)
+           VALUES (?,?,?) ON DUPLICATE KEY UPDATE guide_id=VALUES(guide_id)`,
+          [randomUUID(), targetUserId, guideId],
+        );
+      }
+    }
+    if (Array.isArray(local.wrongQuestionIds)) {
+      for (const questionId of [...new Set(local.wrongQuestionIds.filter((id) => typeof id === 'string' && id.length > 0))]) {
+        await connection.execute(
+          `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content)
+           VALUES (?,?,?,'legacy',NULL) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
+          [randomUUID(), targetUserId, questionId],
+        );
+      }
+    }
 
     // Deliberately excluded: old墨滴/签到/连续天数/徽章/refresh tokens.
     // This migration never invokes awardPoints; historical imports do not grant rewards.
