@@ -90,6 +90,8 @@ async function importUser(oldUser) {
     localMasteredCharacters: Array.isArray(local.masteredCharacterIds) ? local.masteredCharacterIds.length : 0,
     localMasteredWords: Array.isArray(local.masteredWordIds) ? local.masteredWordIds.length : 0,
     localCompletedSentences: Array.isArray(local.completedSentenceIds) ? local.completedSentenceIds.length : 0,
+    localExams: exams.length === 0 && Array.isArray(local.examHistory) ? local.examHistory.length : 0,
+    localEssays: essays.length === 0 && Array.isArray(local.essayPractices) ? local.essayPractices.length : 0,
   };
 
   if (!apply) return { status: 'dry-run', username: oldUser.username, targetUserId, counts };
@@ -186,6 +188,37 @@ async function importUser(oldUser) {
           `INSERT INTO chinese_wrong_questions (id,user_id,question_id,question_type,question_content)
            VALUES (?,?,?,'legacy',NULL) ON DUPLICATE KEY UPDATE question_id=VALUES(question_id)`,
           [randomUUID(), targetUserId, questionId],
+        );
+      }
+    }
+
+
+    // If legacy relational tables are empty, recover the browser-only records.
+    // Do not merge both sources blindly: the old app could have stored the same
+    // activity in both places with unrelated IDs.
+    if (exams.length === 0 && Array.isArray(local.examHistory)) {
+      for (const [index, record] of local.examHistory.entries()) {
+        const key = String(record?.id || index).slice(0, 40);
+        await connection.execute(
+          `INSERT INTO chinese_exam_records
+           (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
+           VALUES (?, ?, NULL, ?, 0, 0, 0, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+          [randomUUID(), targetUserId, safeScore(record?.score), Math.max(0,Math.floor(Number(record?.timeSpentSeconds)||0)), jsonValue(record), `legacy-local-exam:${key}`],
+        );
+      }
+    }
+    if (essays.length === 0 && Array.isArray(local.essayPractices)) {
+      for (const [index, record] of local.essayPractices.entries()) {
+        const key = String(record?.id || index).slice(0, 40);
+        const content = String(record?.content || '');
+        if (!content.trim()) continue;
+        await connection.execute(
+          `INSERT INTO chinese_essay_records
+           (id,user_id,essay_id,title,prompt,content,word_count,score,feedback_json,request_key,status)
+           VALUES (?,?,?,?,?,?,?,?,?,?,'submitted')
+           ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+          [randomUUID(),targetUserId,record?.essayId || null,record?.title || null,null,content,Math.max(0,Math.floor(Number(record?.wordCount)||[...content].length)),record?.score ?? null,jsonValue(record?.feedback ?? null),`legacy-local-essay:${key}`],
         );
       }
     }
