@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
 import { speakChinese, stopChineseSpeech } from '../speech.ts';
+import { getReviewSchedule, sortReviewQueue } from '../reviewAlgorithm.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
 import {
   getChineseProgress, saveChineseProgress, getChineseCharacters, saveChineseCharacters,
@@ -114,9 +115,92 @@ export function ChineseWordsView({ctx}:ViewProps){
 }
 
 export function ChineseSentencesView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const remote=useRemoteIds('sentences');const [category,setCategory]=useState('all'),[reveal,setReveal]=useState<Record<string,boolean>>({}),[notice,setNotice]=useState(''),[eventIds,setEventIds]=useState<Record<string,string>>({});const items=SENTENCES_DATA[grade]||[];const filtered=items.filter(x=>category==='all'||x.category===category);
-  const mark=async(item:SentenceItem,ok:boolean)=>{try{const eventId=eventIds[item.id]||crypto.randomUUID();setEventIds(v=>({...v,[item.id]:eventId}));await recordChineseSentencePractice(item.id,ok?'correct':'wrong',eventId);if(ok&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'sentence',requestId:eventId,questionContent:item.originalText});setEventIds(v=>{const n={...v};delete n[item.id];return n;});setNotice(ok?'完成记录已保存。':'已加入错题，建议稍后重练。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
-  return <Frame ctx={ctx} title="句子学习" subtitle="研习修辞、文言名句、病句诊治和经典仿写。"><div className="flex flex-wrap gap-3"><GradePicker value={grade} onChange={setGrade}/><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-xl border px-3 py-2 text-sm"><option value="all">全部句式</option><option value="rhetoric">修辞赏析</option><option value="classical">文言名句</option><option value="error_correction">病句诊治</option><option value="imitation">经典仿写</option></select></div>{remote.loading&&<Notice>读取完成记录…</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">已完成 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p><div className="space-y-3">{filtered.map(x=><Card key={x.id} title={x.title} meta={x.categoryLabel}><p className="font-medium">“{x.originalText}”</p><SpeakButton text={x.originalText} label="朗读原句"/><p>{x.analysis}</p>{x.modernTranslation&&<p>译文：{x.modernTranslation}</p>}{x.keyDevices&&<p>关键手法：{x.keyDevices.join('、')}</p>}<p>练习要求：{x.practicePrompt}</p><div className="flex flex-wrap gap-2"><button onClick={()=>setReveal(v=>({...v,[x.id]:!v[x.id]}))} className="rounded-lg border px-3 py-2">{reveal[x.id]?'隐藏参考':'查看参考答案'}</button><button onClick={()=>void mark(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void mark(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button></div>{reveal[x.id]&&<Notice>{x.practiceAnswer}</Notice>}</Card>)}</div></Frame>;
+  const {grade,setGrade}=useGrade();
+  const remote=useRemoteIds('sentences');
+  const [category,setCategory]=useState('all');
+  const [reveal,setReveal]=useState<Record<string,boolean>>({});
+  const [drafts,setDrafts]=useState<Record<string,string>>({});
+  const [notice,setNotice]=useState('');
+  const [busyId,setBusyId]=useState('');
+  const [eventIds,setEventIds]=useState<Record<string,string>>({});
+  const [requestIds,setRequestIds]=useState<Record<string,string>>({});
+  const items=SENTENCES_DATA[grade]||[];
+  const filtered=items.filter(x=>category==='all'||x.category===category);
+
+  const mark=async(item:SentenceItem,ok:boolean)=>{
+    const eventId=eventIds[item.id]||crypto.randomUUID();
+    setEventIds(v=>({...v,[item.id]:eventId}));
+    setBusyId(item.id);
+    try{
+      await recordChineseSentencePractice(item.id,ok?'correct':'wrong',eventId);
+      if(ok&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);
+      if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'sentence',requestId:eventId,questionContent:item.originalText});
+      setEventIds(v=>{const n={...v};delete n[item.id];return n;});
+      setNotice(ok?'完成记录已保存。':'已加入错题，建议稍后重练。');
+    }catch(e){setNotice(e instanceof Error?e.message:'保存失败；可重试，练习事件不会重复累计。');}
+    finally{setBusyId('');}
+  };
+
+  const saveImitation=async(item:SentenceItem)=>{
+    const content=(drafts[item.id]||'').trim();
+    if([...content].length<8){setNotice('再多写一些内容，至少完成一个完整句子。');return;}
+    const requestId=requestIds[item.id]||crypto.randomUUID();
+    const eventId=eventIds[item.id]||crypto.randomUUID();
+    setRequestIds(v=>({...v,[item.id]:requestId}));
+    setEventIds(v=>({...v,[item.id]:eventId}));
+    setBusyId(item.id);
+    try{
+      const characterCount=[...content].length;
+      const paragraphCount=content.split(/\\n\\s*\\n/).filter(Boolean).length;
+      await submitChineseEssay({
+        requestId,essayId:item.id,title:item.title,
+        prompt:item.practicePrompt,content,
+        feedback:{overview:'学生自主完成的仿写记录；本次不使用 AI 评分。',characterCount,paragraphCount},
+      });
+      await recordChineseSentencePractice(item.id,'correct',eventId);
+      if(!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);
+      setDrafts(v=>({...v,[item.id]:''}));
+      setRequestIds(v=>{const n={...v};delete n[item.id];return n;});
+      setEventIds(v=>{const n={...v};delete n[item.id];return n;});
+      setNotice('仿写内容和完成记录已保存。');
+    }catch(e){setNotice(e instanceof Error?e.message:'仿写保存失败；可以安全重试。');}
+    finally{setBusyId('');}
+  };
+
+  return <Frame ctx={ctx} title="句子学习" subtitle="研习修辞、文言名句、病句诊治和经典仿写。">
+    <div className="flex flex-wrap gap-3">
+      <GradePicker value={grade} onChange={setGrade}/>
+      <select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-xl border px-3 py-2 text-sm">
+        <option value="all">全部句式</option><option value="rhetoric">修辞赏析</option><option value="classical">文言名句</option><option value="error_correction">病句诊治</option><option value="imitation">经典仿写</option>
+      </select>
+    </div>
+    {remote.loading&&<Notice>读取完成记录…</Notice>}
+    {remote.error&&<Notice error>{remote.error}</Notice>}
+    {notice&&<Notice>{notice}</Notice>}
+    <p className="text-sm text-[#607797]">已完成 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p>
+    <div className="space-y-3">
+      {filtered.map(item=><Card key={item.id} title={item.title} meta={item.categoryLabel}>
+        <p className="font-medium">“{item.originalText}”</p>
+        <SpeakButton text={item.originalText} label="朗读原句"/>
+        <p>{item.analysis}</p>
+        {item.modernTranslation&&<p>译文：{item.modernTranslation}</p>}
+        {item.keyDevices&&<p>关键手法：{item.keyDevices.join('、')}</p>}
+        <p>练习要求：{item.practicePrompt}</p>
+        {item.category==='imitation'&&<label className="block text-sm">我的仿写
+          <textarea rows={4} value={drafts[item.id]||''} onChange={e=>setDrafts(v=>({...v,[item.id]:e.target.value}))} placeholder="结合原句特点，写出自己的句子…" className="mt-1 w-full rounded-xl border border-[#D9E5F4] p-3 leading-7"/>
+        </label>}
+        <div className="flex flex-wrap gap-2">
+          <button onClick={()=>setReveal(v=>({...v,[item.id]:!v[item.id]}))} className="rounded-lg border px-3 py-2">{reveal[item.id]?'隐藏参考答案':'查看参考答案'}</button>
+          {item.category==='imitation'
+            ? <button disabled={busyId===item.id||!(drafts[item.id]||'').trim()} onClick={()=>void saveImitation(item)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-50">{busyId===item.id?'保存中…':'保存仿写并标记完成'}</button>
+            : <button disabled={busyId===item.id} onClick={()=>void mark(item,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-50">我已掌握</button>}
+          <button disabled={busyId===item.id} onClick={()=>void mark(item,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700 disabled:opacity-50">仍需练习</button>
+        </div>
+        {reveal[item.id]&&<Notice>{item.practiceAnswer}</Notice>}
+        {remote.ids.includes(item.id)&&<p className="text-xs text-emerald-700">已完成并同步</p>}
+      </Card>)}
+    </div>
+  </Frame>;
 }
 
 function evaluateEssayDraft(content:string){
