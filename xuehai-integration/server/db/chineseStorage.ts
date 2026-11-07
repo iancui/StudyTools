@@ -105,6 +105,15 @@ export class ChineseStorage {
            last_practiced_at=CURRENT_TIMESTAMP`,
           [randomUUID(), userId, itemId, 1, correct, wrong],
         );
+      } else {
+        const [existingEvents] = await connection.execute<RowDataPacket[]>(
+          'SELECT item_kind, item_id, result FROM chinese_practice_events WHERE user_id=? AND event_id=? LIMIT 1',
+          [userId, eventId],
+        );
+        const existing = existingEvents[0];
+        if (!existing || existing.item_kind !== kind || existing.item_id !== itemId || existing.result !== result) {
+          throw Object.assign(new Error('练习请求编号已使用，请重新提交'), { status: 409 });
+        }
       }
       const [rows] = await connection.execute<RowDataPacket[]>(
         `SELECT ${cfg.item}, ${cfg.state}, practice_count, correct_count, wrong_count, first_learned_at, last_practiced_at, ${cfg.doneAt}, updated_at FROM ${cfg.table} WHERE user_id=? AND ${cfg.item}=? LIMIT 1`,
@@ -141,6 +150,14 @@ export class ChineseStorage {
            VALUES (?,?) ON DUPLICATE KEY UPDATE total_study_minutes=total_study_minutes+VALUES(total_study_minutes)`,
           [userId, duration],
         );
+      } else {
+        const [existingSessions] = await connection.execute<RowDataPacket[]>(
+          'SELECT duration_minutes FROM chinese_study_sessions WHERE user_id=? AND session_id=? LIMIT 1',
+          [userId, safeSessionId],
+        );
+        if (Number(existingSessions[0]?.duration_minutes) !== duration) {
+          throw Object.assign(new Error('计时请求编号已使用，请重新开始计时'), { status: 409 });
+        }
       }
       const [rows] = await connection.execute<RowDataPacket[]>(
         'SELECT total_study_minutes FROM chinese_user_progress WHERE user_id=? LIMIT 1',
