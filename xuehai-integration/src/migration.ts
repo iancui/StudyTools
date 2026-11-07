@@ -1,4 +1,4 @@
-import type { UserProgress } from "../../src/types/progress";
+import type { UserProgress } from "./source-progress";
 import type { LearningProgressSnapshot } from "./contracts";
 import { toLearningProgressSnapshot } from "./progress";
 
