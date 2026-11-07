@@ -1,38 +1,51 @@
-# 墨韵中文 × 学海集成包
+# StudyTools → 学海语文学科集成包
 
-本目录是与宿主项目隔离的集成边界。原项目 `src/`、`server/` 不在本次提交中修改；不新增依赖。
+本目录按用户提供的学海技术契约组织。源项目 `src/`、`server/` 保留不动；所有新增文件均在 `xuehai-integration/`。
 
-## 已核实的源项目事实
+## 已生成的交付
 
-- 课程数据来自 `src/data/curriculum.ts`，导出年级、汉字、词语、句子、作文、测验和默认课程配置。
-- 核心类型位于 `src/types/chinese.ts`、`src/types/progress.ts`。
-- 旧浏览器存储键为 `moyun_chinese_learning_v1`，并可按旧用户数值 ID 分区。
-- 旧 API 进度摘要：`GET/PUT /api/progress`。
-- 旧详细进度：`/api/progress/characters`、`/api/progress/words`、`/api/progress/sentences`。
-- 旧数据库快照位于 `server/migrations/schema.sql`，其中用户主键和进度 user_id 为 unsigned BIGINT；该结构不能直接迁入学海。
+- `patches/01-shared-subjects.md` 至 `05-server-register.md`：学海 5 个宿主接入补丁说明。
+- `web/features/chinese/api.ts`：本学科唯一 API 层，读取学海 `linguastep_token`，统一响应、401、友好错误和积分动画事件。
+- `web/features/chinese/ChineseShell.tsx`、`views/index.tsx`：语文外壳和页面路由组件骨架。
+- `web/features/chinese/data/**`：从旧项目课程模块提取的类型与静态数据 TypeScript 快照，稳定课程 ID 保留。
+- `server/routes/chinese.ts`、`controllers/chineseController.ts`、`services/chineseService.ts`、`db/chineseStorage.ts`：后端分层骨架；SQL 集中在 chineseStorage。
+- `database/migrations/021_chinese.sql`：独立语文表，CREATE TABLE IF NOT EXISTS、VARCHAR(36) user_id、无外键、无 DROP TABLE。
+- `database/legacy-import/import-studytools.mjs`：默认 dry-run；正式执行需同时传 `--apply --confirm`。
+- `docs/api-contract.md`、`docs/data-mapping.md`、`docs/acceptance.md`：端点、字段映射和验收说明。
 
-详见 [SOURCE_AUDIT.md](./SOURCE_AUDIT.md)。
+## 复制到学海
 
-## 宿主边界
+| 本目录路径 | 学海目标路径 |
+|---|---|
+| `web/features/chinese/**` | `apps/web/src/features/chinese/**` |
+| `server/routes/chinese.ts` | `apps/server/src/backend/routes/chinese.ts` |
+| `server/controllers/**` | `apps/server/src/backend/controllers/**` |
+| `server/services/**` | `apps/server/src/backend/services/**` |
+| `server/db/chineseStorage.ts` | `apps/server/src/backend/db/chineseStorage.ts` |
+| `database/migrations/021_chinese.sql` | `apps/server/database/migrations/021_chinese.sql`（按学海现有迁移目录核对） |
+| `database/legacy-import/**` | `apps/server/database/legacy-import/**` |
 
-学海是身份、会话、用户 ID、权限、积分、签到、会员及数据持久化的唯一权威系统。本集成包：
+然后按 patches 中的五项修改 shared、router、App layout、subject entry/preference 和 routes/index.ts。
 
-- 不创建登录、注册、JWT、refresh-token 或用户表；
-- 不实现积分、签到、连续签到、徽章奖励或会员等级；
-- 不读取/写入 localStorage；
-- 不将旧系统的用户数值 ID 当作学海 user_id；
-- 不创建/修改 `src/` 或 `server/`；
-- 不假设学海路由、数据库表名或响应包装格式。宿主必须显式注入请求函数和路由映射。
+## 身份、进度和积分边界
 
-## 接入
+- 不创建登录/注册/会话；所有后端 userId 从学海 `req.user!.id` 获取。
+- 前端只使用学海 `linguastep_token`；本地不保存学习进度。
+- 墨滴、签到、连续签到、旧徽章全部不迁移。
+- 只有单课测验达到 70 分时，后端调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。
+- 预习、复习、练习、作文不发分。
+- 历史迁移只按用户名/可用邮箱对账学海用户，不创建用户；默认 dry-run，不发积分。
 
-1. 将本目录复制到学海仓库。
-2. 从 `src/curriculum.ts` 导入课程快照；课程内容保持源 ID，不重编号。
-3. 在学海已认证的服务端/客户端请求层注入 `HostRequest`，由学海负责会话与权限。
-4. 将学海已确认的 API 路由传入 `createMoyunApi`；不得直接复用旧系统认证路由。
-5. 用 `src/migration.ts` 做纯内存 dry-run，先输出映射统计和冲突；确认后再调用学海正式写入流程。
-6. 对照 `PATCHSET.md` 和 `VERIFY.md` 完成宿主侧接线与验收。
+## 数据迁移操作
 
-## 当前阻塞
+1. 分别备份 StudyTools 旧 MySQL 数据库、学海数据库。
+2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username/email 唯一匹配。
+3. 配置 `STUDYTOOLS_DB_*` 与学海 `DB_*` 环境变量。
+4. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs`，检查每个用户的映射状态和记录数量。
+5. 只有核对通过后才执行 `node .../import-studytools.mjs --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
 
-学海目标仓库的文件树、API 路由定义、统一响应 DTO、用户 ID 类型和 SQL schema 尚未提供/核实。因此本包不生成会假定这些事实的宿主端补丁或可直接执行的 SQL。对应的五类接入点和待确认项列在 `PATCHSET.md`。
+## 当前限制
+
+学海仓库源码未提供给本次会话，因此不能验证目标路由、`getDbPool()`、`db.awardPoints()` 实际签名、users 表字段、tsconfig 路径和现有 layout renderer。页面目前为导航/内容浏览骨架；笔顺画布、完整练习交互、作文批改 UI、预习/复习算法接线、档案聚合、课程 JSON 文件（当前为 TS 快照）、端到端测试仍需后续完成。不要将本包视为已经在学海构建通过的最终发布版。
+
+回滚方式：关闭 PR 或删除学海侧复制的 `features/chinese`、语文后端文件及 `021_chinese.sql`（仅在迁移尚未产生数据时）；不删除 StudyTools 原有目录。
