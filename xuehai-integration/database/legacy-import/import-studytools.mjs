@@ -174,7 +174,7 @@ async function importUser(oldUser) {
     await insertLocalIds(local.masteredWordIds, 'chinese_word_progress', 'word_id', 'is_mastered', 'mastered_at');
     await insertLocalIds(local.completedSentenceIds, 'chinese_sentence_progress', 'sentence_id', 'is_completed', 'completed_at');
     if (Array.isArray(local.previewedItemIds)) {
-      for (const guideId of [...new Set(local.previewedItemIds.filter((id) => typeof id === 'string' && id.length > 0))]) {
+      for (const guideId of [...new Set(local.previewedItemIds.filter((id) => typeof id === 'string' && /^prev-g(?:[1-9]|1[0-2])$/.test(id)))]) {
         await connection.execute(
           `INSERT INTO chinese_preview_records (id,user_id,guide_id)
            VALUES (?,?,?) ON DUPLICATE KEY UPDATE guide_id=VALUES(guide_id)`,
