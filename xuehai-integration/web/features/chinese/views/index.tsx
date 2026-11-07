@@ -232,21 +232,101 @@ export function ChinesePreviewView({ctx}:ViewProps){
 
 export function ChineseReviewView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();
-  const [charIds,setChar]=useState<string[]>([]),[wordIds,setWord]=useState<string[]>([]),[sentenceIds,setSentence]=useState<string[]>([]);
-  const [wrongRows,setWrongRows]=useState<any[]>([]),[eventIds,setEventIds]=useState<Record<string,string>>({});
+  const [charRows,setCharRows]=useState<any[]>([]);
+  const [wordRows,setWordRows]=useState<any[]>([]);
+  const [sentenceRows,setSentenceRows]=useState<any[]>([]);
+  const [wrongRows,setWrongRows]=useState<any[]>([]);
+  const [eventIds,setEventIds]=useState<Record<string,string>>({});
   const [loading,setLoading]=useState(true),[notice,setNotice]=useState('');
-  useEffect(()=>{let live=true;Promise.all([getChineseCharacters(),getChineseWords(),getChineseSentences(),getChineseWrongQuestions()]).then(([c,w,s,wrong])=>{if(!live)return;setChar(c.filter(x=>x.is_mastered).map(x=>String(x.character_id)));setWord(w.filter(x=>x.is_mastered).map(x=>String(x.word_id)));setSentence(s.filter(x=>x.is_completed).map(x=>String(x.sentence_id)));setWrongRows(wrong.filter(x=>!x.is_resolved));}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'复习记录读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
-  const todo=[...(CHARACTERS_DATA[grade]||[]).filter(x=>!charIds.includes(x.id)).map(x=>({id:x.id,title:x.char,meta:x.pinyin,kind:'character' as const})),...(WORDS_DATA[grade]||[]).filter(x=>!wordIds.includes(x.id)).map(x=>({id:x.id,title:x.word,meta:x.pinyin,kind:'word' as const})),...(SENTENCES_DATA[grade]||[]).filter(x=>!sentenceIds.includes(x.id)).map(x=>({id:x.id,title:x.title,meta:x.categoryLabel,kind:'sentence' as const}))];
-  const mark=async(item:typeof todo[number],correct:boolean)=>{const eventId=eventIds[item.id]||crypto.randomUUID();setEventIds(v=>({...v,[item.id]:eventId}));try{if(item.kind==='character'){await recordChineseCharacterPractice(item.id,correct?'correct':'wrong',eventId);if(correct){const n=[...new Set([...charIds,item.id])];await saveChineseCharacters(n);setChar(n);}}else if(item.kind==='word'){await recordChineseWordPractice(item.id,correct?'correct':'wrong',eventId);if(correct){const n=[...new Set([...wordIds,item.id])];await saveChineseWords(n);setWord(n);}}else{await recordChineseSentencePractice(item.id,correct?'correct':'wrong',eventId);if(correct){const n=[...new Set([...sentenceIds,item.id])];await saveChineseSentences(n);setSentence(n);}}if(!correct)await saveChineseWrongQuestion({questionId:item.id,questionType:item.kind,requestId:eventId,questionContent:item.title});setEventIds(v=>{const next={...v};delete next[item.id];return next;});setNotice(correct?'复习完成并已保存。':'已加入错题记录，稍后再练。');}catch(e){setNotice(e instanceof Error?e.message:'复习记录保存失败；可重试，练习事件不会重复累计。');}};
-  const resolve=async(row:any)=>{try{await resolveChineseWrongQuestion(String(row.question_id));setWrongRows(rows=>rows.filter(x=>x.question_id!==row.question_id));setNotice('错题已标记为解决。');}catch(e){setNotice(e instanceof Error?e.message:'错题状态保存失败');}};
-  return <Frame ctx={ctx} title="复习巩固" subtitle="结合未掌握内容和历史错题安排复习；自评正确后同步掌握状态。">
-    <GradePicker value={grade} onChange={setGrade}/>{loading&&<Notice>正在整理复习清单…</Notice>}{notice&&<Notice>{notice}</Notice>}
-    <p className="text-sm text-[#607797]">待复习 {todo.length} 项 · 未解决错题 {wrongRows.length} 项</p>
-    <div className="grid gap-3 sm:grid-cols-2">{todo.slice(0,60).map(x=><Card key={x.id} title={x.title} meta={x.meta}><div className="flex gap-2"><button onClick={()=>void mark(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void mark(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button></div></Card>)}</div>
-    <Card title="历史错题"><div className="space-y-2">{wrongRows.map(row=><div key={row.question_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7FAFF] p-3"><div><p className="font-medium">{row.question_content||row.question_id}</p><p className="text-xs text-[#7890B0]">错误 {row.wrong_count} 次 · {row.question_type}</p></div><button onClick={()=>void resolve(row)} className="rounded-lg border px-3 py-2">标记已解决</button></div>)}</div></Card>
-    {!loading&&!todo.length&&!wrongRows.length&&<Notice>当前没有待复习内容或未解决错题，继续保持。</Notice>}
+  const [busyId,setBusyId]=useState('');
+
+  const load=async()=>{
+    const [characters,words,sentences,wrong]=await Promise.all([
+      getChineseCharacters(),getChineseWords(),getChineseSentences(),getChineseWrongQuestions(),
+    ]);
+    setCharRows(characters);setWordRows(words);setSentenceRows(sentences);
+    setWrongRows(wrong.filter(x=>!x.is_resolved));
+  };
+  useEffect(()=>{let live=true;void Promise.all([getChineseCharacters(),getChineseWords(),getChineseSentences(),getChineseWrongQuestions()])
+    .then(([c,w,s,wrong])=>{if(!live)return;setCharRows(c);setWordRows(w);setSentenceRows(s);setWrongRows(wrong.filter(x=>!x.is_resolved));})
+    .catch(e=>{if(live)setNotice(e instanceof Error?e.message:'复习记录读取失败');})
+    .finally(()=>{if(live)setLoading(false);});
+    return()=>{live=false;};
+  },[]);
+
+  const charMap=new Map(charRows.map(x=>[String(x.character_id),x]));
+  const wordMap=new Map(wordRows.map(x=>[String(x.word_id),x]));
+  const sentenceMap=new Map(sentenceRows.map(x=>[String(x.sentence_id),x]));
+  const candidates=[
+    ...(CHARACTERS_DATA[grade]||[]).map(item=>({id:item.id,title:item.char,meta:item.pinyin,kind:'character' as const,stats:charMap.get(item.id)})),
+    ...(WORDS_DATA[grade]||[]).map(item=>({id:item.id,title:item.word,meta:item.pinyin,kind:'word' as const,stats:wordMap.get(item.id)})),
+    ...(SENTENCES_DATA[grade]||[]).map(item=>({id:item.id,title:item.title,meta:item.categoryLabel,kind:'sentence' as const,stats:sentenceMap.get(item.id)})),
+  ];
+  const todo=sortReviewQueue(candidates.map(item=>{
+    const stats=item.stats;
+    const mastered=Boolean(item.kind==='sentence'?stats?.is_completed:stats?.is_mastered);
+    const schedule=getReviewSchedule({
+      isMastered:mastered,
+      practiceCount:Number(stats?.practice_count||0),
+      correctCount:Number(stats?.correct_count||0),
+      wrongCount:Number(stats?.wrong_count||0),
+      lastPracticedAt:stats?.last_practiced_at||null,
+    });
+    return {...item,...schedule};
+  }).filter(item=>item.due));
+
+  const mark=async(item:typeof todo[number],correct:boolean)=>{
+    const eventId=eventIds[item.id]||crypto.randomUUID();
+    setEventIds(v=>({...v,[item.id]:eventId}));setBusyId(item.id);
+    try{
+      if(item.kind==='character')await recordChineseCharacterPractice(item.id,correct?'correct':'wrong',eventId);
+      else if(item.kind==='word')await recordChineseWordPractice(item.id,correct?'correct':'wrong',eventId);
+      else await recordChineseSentencePractice(item.id,correct?'correct':'wrong',eventId);
+      if(correct){
+        if(item.kind==='character')await saveChineseCharacters([...new Set([...charRows.filter(x=>x.is_mastered).map(x=>String(x.character_id)),item.id])]);
+        else if(item.kind==='word')await saveChineseWords([...new Set([...wordRows.filter(x=>x.is_mastered).map(x=>String(x.word_id)),item.id])]);
+        else await saveChineseSentences([...new Set([...sentenceRows.filter(x=>x.is_completed).map(x=>String(x.sentence_id)),item.id])]);
+      }else{
+        await saveChineseWrongQuestion({questionId:item.id,questionType:item.kind,requestId:eventId,questionContent:item.title});
+      }
+      setEventIds(v=>{const n={...v};delete n[item.id];return n;});
+      await load();
+      setNotice(correct?'本次复习已保存，下一轮将按记忆情况安排。':'已记录本次错误，并加入错题本。');
+    }catch(e){setNotice(e instanceof Error?e.message:'复习记录保存失败；可重试，练习事件不会重复累计。');}
+    finally{setBusyId('');}
+  };
+
+  const resolve=async(row:any)=>{
+    try{await resolveChineseWrongQuestion(String(row.question_id));setWrongRows(rows=>rows.filter(x=>x.question_id!==row.question_id));setNotice('错题已标记为解决。');}
+    catch(e){setNotice(e instanceof Error?e.message:'错题状态保存失败');}
+  };
+
+  return <Frame ctx={ctx} title="复习巩固" subtitle="依据掌握状态、练习正确率和最近练习时间安排复习，优先处理逾期与易错内容。">
+    <GradePicker value={grade} onChange={setGrade}/>
+    {loading&&<Notice>正在整理复习清单…</Notice>}
+    {notice&&<Notice>{notice}</Notice>}
+    <p className="text-sm text-[#607797]">今日待复习 {todo.length} 项 · 未解决错题 {wrongRows.length} 项</p>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {todo.slice(0,60).map(item=><Card key={item.id} title={item.title} meta={item.meta}>
+        <p className="text-xs text-[#7890B0]">{item.reason} · 练习 {Number(item.stats?.practice_count||0)} 次 · 错误 {Number(item.stats?.wrong_count||0)} 次</p>
+        <div className="flex gap-2">
+          <button disabled={busyId===item.id} onClick={()=>void mark(item,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-50">本次已掌握</button>
+          <button disabled={busyId===item.id} onClick={()=>void mark(item,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700 disabled:opacity-50">仍需练习</button>
+        </div>
+      </Card>)}
+    </div>
+    <Card title="历史错题">
+      <div className="space-y-2">
+        {wrongRows.map(row=><div key={row.question_id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F7FAFF] p-3">
+          <div><p className="font-medium">{row.question_content||row.question_id}</p><p className="text-xs text-[#7890B0]">错误 {row.wrong_count} 次 · {row.question_type}</p></div>
+          <button onClick={()=>void resolve(row)} className="rounded-lg border px-3 py-2">标记已解决</button>
+        </div>)}
+      </div>
+    </Card>
+    {!loading&&!todo.length&&!wrongRows.length&&<Notice>当前没有到期的复习内容或未解决错题，继续保持。</Notice>}
   </Frame>;
 }
+
 function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
 function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const clean=(value:string)=>value.replace(/^[A-D]\.\s*/,'');const answer=clean(typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer));const options=q.options.map((value,i)=>({value:clean(value),rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
 
