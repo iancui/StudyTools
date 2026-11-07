@@ -304,28 +304,80 @@ function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCo
 function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const clean=(value:string)=>value.replace(/^[A-D]\.\s*/,'');const answer=clean(typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer));const options=q.options.map((value,i)=>({value:clean(value),rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
 
 export function ChineseExamView({ctx}:ViewProps){
-  const {grade,setGrade}=useGrade();const [answers,setAnswers]=useState<Record<string,string>>({}),[result,setResult]=useState<{score:number;correct:number;total:number}|null>(null),[graded,setGraded]=useState<Record<string,boolean>>({}),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[requestId,setRequestId]=useState(()=>crypto.randomUUID()),[startedAt,setStartedAt]=useState(()=>Date.now());
+  const {grade,setGrade}=useGrade();
+  const [answers,setAnswers]=useState<Record<string,string>>({});
+  const [result,setResult]=useState<{score:number;correct:number;total:number}|null>(null);
+  const [graded,setGraded]=useState<Record<string,boolean>>({});
+  const [pendingWrong,setPendingWrong]=useState<Array<{questionId:string;questionType:string;requestId:string;questionContent:string}>>([]);
+  const [notice,setNotice]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
+  const [startedAt,setStartedAt]=useState(()=>Date.now());
   const questions=useMemo(()=>([...(CHINESE_EXAM_BANK[grade]||[])].sort((a,b)=>hash(a.id)-hash(b.id)).slice(0,10).map(stableQuestion)),[grade]);
+
+  const retryWrong=async()=>{
+    if(!pendingWrong.length)return;
+    setBusy(true);
+    const results=await Promise.allSettled(pendingWrong.map(item=>saveChineseWrongQuestion(item)));
+    const failed=pendingWrong.filter((_,index)=>results[index].status==='rejected');
+    setPendingWrong(failed);
+    setNotice(failed.length?`仍有 ${failed.length} 道错题未能同步，请稍后重试。`:'错题已全部同步。');
+    setBusy(false);
+  };
+
   const submit=async()=>{
     if(!questions.length)return;
-    if(questions.some(({q})=>!String(answers[q.id]||'').trim())){setNotice('还有题目没有作答，请检查后再提交。');return;}
+    if(questions.some(({q})=>!String(answers[q.id]||'').trim())){
+      setNotice('还有题目没有作答，请检查后再提交。');
+      return;
+    }
     const answerSet=Object.fromEntries(questions.map(({q})=>[q.id,answers[q.id]||'']));
     const correct=questions.filter(x=>String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()).length;
     const score=Math.round((correct/questions.length)*100);
     setBusy(true);setNotice('');
     try{
-      const response=await submitChineseExam({requestId,grade,durationSeconds:Math.max(0,Math.floor((Date.now()-startedAt)/1000)),answers:answerSet});
+      const examRequestId=requestId;
+      const response=await submitChineseExam({requestId:examRequestId,grade,durationSeconds:Math.max(0,Math.floor((Date.now()-startedAt)/1000)),answers:answerSet});
       setResult({score:Number((response as any)?.score??score),correct,total:questions.length});
       setGraded(Object.fromEntries(questions.map(x=>[x.q.id,String(answerSet[x.q.id]).trim().toLowerCase()===x.answer.trim().toLowerCase()])));
-      for(const x of questions.filter(q=>String(answerSet[q.q.id]).trim().toLowerCase()!==q.answer.trim().toLowerCase())){
-        await saveChineseWrongQuestion({questionId:x.q.id,questionType:x.q.category,requestId:`${requestId.replace(/-/g,'').slice(0,16)}:${x.q.id.slice(0,40)}`,questionContent:JSON.stringify({question:x.q.question,options:x.q.options,correctAnswer:x.answer,studentAnswer:answerSet[x.q.id]})});
-      }
+      const wrongItems=questions.filter(x=>String(answerSet[x.q.id]).trim().toLowerCase()!==x.answer.trim().toLowerCase()).map(x=>({
+        questionId:x.q.id,
+        questionType:x.q.category,
+        requestId:`${examRequestId.replace(/-/g,'').slice(0,16)}:${x.q.id.slice(0,40)}`,
+        questionContent:JSON.stringify({question:x.q.question,options:x.q.options,correctAnswer:x.answer,studentAnswer:answerSet[x.q.id]}),
+      }));
+      const wrongResults=await Promise.allSettled(wrongItems.map(item=>saveChineseWrongQuestion(item)));
+      const failedWrong=wrongItems.filter((_,index)=>wrongResults[index].status==='rejected');
+      setPendingWrong(failedWrong);
       setRequestId(crypto.randomUUID());setStartedAt(Date.now());
-      setNotice((response as any)?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；由于尚未关联正式课次，本次不发放积分。');
-    }catch(e){setNotice(e instanceof Error?e.message:'测验提交失败');}
-    finally{setBusy(false);}
+      setNotice(failedWrong.length
+        ? `测验已保存；还有 ${failedWrong.length} 道错题未同步，请点击重试。`
+        : ((response as any)?.pointsAward?.awarded?'测验已核验并保存，奖励由学海积分服务处理。':'测验已由服务端题库核验并保存；由于尚未关联正式课次，本次不发放积分。'));
+    }catch(e){
+      setNotice(e instanceof Error?e.message:'测验提交失败');
+    }finally{setBusy(false);}
   };
-  return <Frame ctx={ctx} title="年级综合测验" subtitle="题目和选择题选项顺序稳定；提交后自动评分并保存错题。"><GradePicker value={grade} onChange={v=>{setGrade(v);setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}}/><p className="text-xs text-[#7890B0]">本次测验由服务端题库独立核对答案；目前题目来自年级综合题库，尚未映射正式课次，因此暂不发放积分。</p><div className="space-y-3">{questions.map(({q,answer})=><Card key={q.id} title={q.question} meta={`${q.difficulty} · ${q.category}`}>{q.type==='choice'&&q.options?.map((option,i)=><label key={i} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E7EEF8] p-2"><input type="radio" name={q.id} checked={answers[q.id]===option} disabled={Boolean(result)} onChange={()=>setAnswers(v=>({...v,[q.id]:option}))}/>{option}</label>)}{q.type==='fill'&&<input value={answers[q.id]||''} disabled={Boolean(result)} onChange={e=>setAnswers(v=>({...v,[q.id]:e.target.value}))} className="w-full rounded-lg border px-3 py-2" placeholder="请输入答案"/>}{result&&<Notice error={!graded[q.id]}>{graded[q.id]?'回答正确。':'需要巩固。'} 参考答案：{answer}。{q.explanation.replace(/[A-D]\\s*为[^。；]*[。；]?/g,'')}</Notice>}</Card>)}</div><button disabled={busy||!questions.length||Boolean(result)} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>{result&&<><Notice>得分 {result.score} 分，答对 {result.correct}/{result.total} 题。</Notice><button onClick={()=>{setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}} className="rounded-lg border px-3 py-2">重新测验</button></>}{notice&&<Notice>{notice}</Notice>}</Frame>;
+
+  return <Frame ctx={ctx} title="年级综合测验" subtitle="题目和选择题选项顺序稳定；服务端独立核验答案，逐题反馈并保存错题。">
+    <GradePicker value={grade} onChange={v=>{setGrade(v);setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}}/>
+    <p className="text-xs text-[#7890B0]">本次测验由服务端题库独立核对答案；题库为年级综合题，尚未映射正式课次，因此暂不发放积分。</p>
+    <div className="space-y-3">
+      {questions.map(({q,answer})=><Card key={q.id} title={q.question} meta={`${q.difficulty} · ${q.category}`}>
+        {q.type==='choice'&&q.options?.map((option,i)=><label key={i} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E7EEF8] p-2">
+          <input type="radio" name={q.id} checked={answers[q.id]===option} disabled={Boolean(result)} onChange={()=>setAnswers(v=>({...v,[q.id]:option}))}/>{option}
+        </label>)}
+        {q.type==='fill'&&<input value={answers[q.id]||''} disabled={Boolean(result)} onChange={e=>setAnswers(v=>({...v,[q.id]:e.target.value}))} className="w-full rounded-lg border px-3 py-2" placeholder="请输入答案"/>}
+        {result&&<Notice error={!graded[q.id]}>{graded[q.id]?'回答正确。':'需要巩固。'} 参考答案：{answer}。{q.explanation.replace(/[A-D]\\s*为[^。；]*[。；]?/g,'')}</Notice>}
+      </Card>)}
+    </div>
+    <button disabled={busy||!questions.length||Boolean(result)} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>
+    {result&&<div className="space-y-2">
+      <Notice>得分 {result.score} 分，答对 {result.correct}/{result.total} 题。</Notice>
+      {pendingWrong.length>0&&<button disabled={busy} onClick={()=>void retryWrong()} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">{busy?'同步中…':`重试同步 ${pendingWrong.length} 道错题`}</button>}
+      <button onClick={()=>{setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}} className="rounded-lg border px-3 py-2">重新测验</button>
+    </div>}
+    {notice&&<Notice>{notice}</Notice>}
+  </Frame>;
 }
 
 export function ChineseArchiveView({ctx}:ViewProps){
