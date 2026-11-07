@@ -60,7 +60,7 @@ function useRemoteIds(kind:'characters'|'words'|'sentences'){
 
 export function ChineseHomeView({ctx}:ViewProps){
   const {grade,setGrade,gradeError}=useGrade();const [progress,setProgress]=useState<any>(null),[error,setError]=useState('');
-  const [startedAt,setStartedAt]=useState<number|null>(null),[seconds,setSeconds]=useState(0),[sessionId,setSessionId]=useState(''),[timerNotice,setTimerNotice]=useState(''),[saving,setSaving]=useState(false);
+  const [startedAt,setStartedAt]=useState<number|null>(null),[seconds,setSeconds]=useState(0),[sessionId,setSessionId]=useState(''),[timerNotice,setTimerNotice]=useState(''),[saving,setSaving]=useState(false);const savedSessions=useRef(new Set<string>());
   useEffect(()=>{let live=true;void getChineseProgress().then(p=>{if(live)setProgress(p);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'学习概览暂不可用');});return()=>{live=false;};},[]);
   useEffect(()=>{if(startedAt===null)return;const timer=window.setInterval(()=>setSeconds(Math.floor((Date.now()-startedAt)/1000)),1000);return()=>window.clearInterval(timer);},[startedAt]);
   // 离开首页时尽力保存已满一分钟的计时；sessionId 由服务端唯一键防重。
@@ -68,8 +68,9 @@ export function ChineseHomeView({ctx}:ViewProps){
     if(startedAt===null||!sessionId)return;
     const sessionStart=startedAt, activeSessionId=sessionId;
     return()=>{
+      if(savedSessions.current.has(activeSessionId))return;
       const minutes=Math.floor((Date.now()-sessionStart)/60000);
-      if(minutes>=1)void recordChineseStudySession(minutes,activeSessionId).catch(error=>console.warn('离开页面时保存学习计时失败',error));
+      if(minutes>=1)void recordChineseStudySession(minutes,activeSessionId).then(()=>savedSessions.current.add(activeSessionId)).catch(error=>console.warn('离开页面时保存学习计时失败',error));
     };
   },[startedAt,sessionId]);
   const links=[['生字学习','/chinese/characters','汉字、拼音、部首与笔画'],['笔顺练习','/chinese/characters/practice','书写与自我检查'],['词语学习','/chinese/words','词义、近反义词和例句'],['句子学习','/chinese/sentences','修辞、文言和仿写'],['作文练习','/chinese/essays','审题、提纲和写作'],['预习','/chinese/preview','课前导读'],['复习','/chinese/review','巩固尚未掌握的内容'],['测验','/chinese/exam','题库与自动评分'],['学习档案','/chinese/archive','错题、测验和作文记录'],['学习设置','/chinese/settings','年级、学期和教材版本']];
@@ -83,7 +84,7 @@ export function ChineseHomeView({ctx}:ViewProps){
     }
   };
   const start=()=>{setSessionId(crypto.randomUUID());setStartedAt(Date.now());setSeconds(0);setTimerNotice('计时已开始，结束时保存本次学习时长。');};
-  const stop=async()=>{if(startedAt===null)return;const minutes=Math.floor((Date.now()-startedAt)/60000);if(minutes<1){setTimerNotice('至少学习 1 分钟后才能保存本次计时。');return;}setSaving(true);try{const saved=await recordChineseStudySession(minutes,sessionId);setProgress((p:any)=>({...p,total_study_minutes:saved.totalStudyMinutes}));setStartedAt(null);setSeconds(0);setSessionId('');setTimerNotice(`已保存 ${saved.durationMinutes} 分钟学习时长。`);}catch(e){setTimerNotice(e instanceof Error?e.message:'计时保存失败；请重试，重复提交不会重复累计。');}finally{setSaving(false);}};
+  const stop=async()=>{if(startedAt===null)return;const minutes=Math.floor((Date.now()-startedAt)/60000);if(minutes<1){setTimerNotice('至少学习 1 分钟后才能保存本次计时。');return;}setSaving(true);try{const saved=await recordChineseStudySession(minutes,sessionId);savedSessions.current.add(sessionId);setProgress((p:any)=>({...p,total_study_minutes:saved.totalStudyMinutes}));setStartedAt(null);setSeconds(0);setSessionId('');setTimerNotice(`已保存 ${saved.durationMinutes} 分钟学习时长。`);}catch(e){setTimerNotice(e instanceof Error?e.message:'计时保存失败；请重试，重复提交不会重复累计。');}finally{setSaving(false);}};
   const clock=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   return <Frame ctx={ctx} title="语文学习首页" subtitle="从识字、词语到阅读表达，循序渐进建立语文能力。">
     <GradePicker value={grade} error={gradeError} onChange={v=>void changeGrade(v)}/>{error&&<Notice error>{error}</Notice>}
