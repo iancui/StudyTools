@@ -12,7 +12,7 @@
 
 ## Patch 3 — 身份与 API 适配
 
-通过 `createMoyunApi(hostRequest, routeMap)` 注入学海已认证请求层。学海服务端从会话确定 userId。禁止把旧 StudyTools JWT、refresh token、users 表、登录页或旧 user ID 带入学海。需确认：HostRequest 统一响应解包方式、四组路由、鉴权方式和 DTO。
+通过 `web/features/chinese/api.ts` 使用学海 linguastep_token 和统一响应包。学海服务端从 AuthenticatedRequest.req.user.id 确定 userId。禁止把旧 StudyTools token、refresh token、users 表、登录页或旧 user ID 带入学海。需确认：全局 401 事件、响应包和 DTO 与学海现有 client 保持一致。
 
 ## Patch 4 — 学习数据持久化与积分边界
 
