@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 export interface ChineseShellProps {
   user: any;
@@ -8,12 +8,12 @@ export interface ChineseShellProps {
 
 /** 语文独立外壳；不实现登录、不保存会话、不覆盖学海全局鉴权。 */
 export function ChineseShell({ user, navigate, children }: ChineseShellProps) {
+  useEffect(() => { if (!user) window.dispatchEvent(new CustomEvent('linguastep:auth-required')); }, [user]);
   const nickname = user?.nickname || user?.username || '';
   const isParent = user?.accountType === 'PARENT';
   const isAdmin = user?.roles?.includes('ADMIN') || user?.role === 'ADMIN';
 
   if (!user) {
-    window.dispatchEvent(new CustomEvent('linguastep:auth-required'));
     return (
       <main className="min-h-screen bg-[#F7FAFF] px-4 py-16 text-center text-[#29466F]">
         <h1 className="text-2xl font-semibold">语文学习</h1>

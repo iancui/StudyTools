@@ -2,23 +2,30 @@
 
 ## 8 条静态自检
 
-1. **依赖**：未新增第三方依赖；未修改 package.json/锁文件。通过（Git diff 范围核对）。
-2. **旧目录**：未修改 StudyTools 原有 src/、server/。通过（本分支变更均在 xuehai-integration/）。
-3. **认证**：未创建旧 users/JWT/refresh-token 认证实现。通过（集成包不包含这些模块）。
-4. **进度真源**：旧 localStorage 仅作为迁移输入；运行时 API 通过学海 linguastep_token 认证，进度由服务端保存。部分通过：API 客户端已定义，服务端路由/存储仍待完成。
-5. **SQL 安全**：021_chinese.sql 仅 CREATE TABLE IF NOT EXISTS；无 DROP TABLE、无外键；用户 ID VARCHAR(36)。通过（静态检查）。
-6. **参数化 SQL**：目标 DB 层尚未交付，因此无法验收。未通过/待实现。
-7. **路由与响应**：API 契约及 routes 注册 patch 已交付；目标 routes/chinese.ts / controllers 尚未实现。未通过/待实现。
-8. **文档与人工验收**：本文件列出 5 步人工验收；因学海目标仓库不可访问，未执行。未通过/待执行。
+1. **依赖**：未新增第三方依赖；未修改 package.json/锁文件。通过（变更均限于 xuehai-integration）。
+2. **旧目录**：未修改 StudyTools 原有 src/、server/。通过（分支变更均在新增目录）。
+3. **认证**：未创建旧 users/JWT/refresh-token 认证实现；web API 使用学海 linguastep_token，服务端从 req.user!.id 取身份。通过（静态检查）。
+4. **进度真源**：没有在语文运行时写入 localStorage 学习进度；只保留学海 token。历史迁移读取由用户显式导出的旧数据，不自动读取浏览器存储。通过（静态检查）。
+5. **SQL 安全**：021_chinese.sql 仅 CREATE TABLE IF NOT EXISTS；无 DROP TABLE、无外键；user_id VARCHAR(36)，业务 id VARCHAR(64)。通过（静态检查）。
+6. **参数化 SQL**：chineseStorage.ts 使用 mysql2 execute 参数占位符；动态表名/列名仅来自代码内固定资源白名单。通过（静态检查，未连真实数据库）。
+7. **路由与响应**：routes/chinese.ts 注册 17 个端点；Controller 统一返回 { code: 200, message: 'success', data }，异常 next(e)。通过（静态核对）；尚未接入学海 routes/index.ts，需应用 patch 05。
+8. **文档与人工验收**：5 个宿主 patch 文件、API 契约、数据映射和 5 步人工验收文档已交付。人工验收未执行，目标仓库未提供。部分通过。
 
-## 5 步人工验收
+## 5 步人工验收（待学海仓库执行）
 
-1. 备份旧 StudyTools 数据库与 localStorage 导出 JSON；在测试库执行 021_chinese.sql。
-2. 启动学海 pnpm workspace，确认 web/server/shared 全部构建通过。
-3. 登录学海账号，打开 /chinese，确认语文学科入口、年级和课程内容可见。
-4. 完成一课测验并达到 70 分，确认仅由学海积分服务发放 +1；同课重复提交不重复发分。
-5. 使用家长账号查看已绑定孩子的语文进度，确认 FamilyService.assertStudentOwned 生效。
+1. 备份 StudyTools 旧 MySQL 数据库、旧浏览器进度导出 JSON 与学海数据库；在学海测试库执行 021_chinese.sql。
+2. 配置两套数据库环境变量，运行 import-studytools.mjs dry-run，检查用户名映射和每类记录数量；核对后再加 --apply --confirm。
+3. 启动学海 pnpm workspace，确认 shared、web、server 构建通过；应用五份 patch 后打开 /chinese。
+4. 完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同课重复提交不重复发分。
+5. 使用家长账号查看绑定孩子的语文进度，确认 FamilyService.assertStudentOwned 生效。
 
-## 本次未运行
+## 未运行
 
-当前会话只拥有 StudyTools 仓库；没有学海目标仓库源码、数据库连接和运行环境。因此未运行 pnpm build、SQL migration、API 集成测试或上述人工验收。不得将“静态检查”描述为构建/运行通过。
+本次没有学海仓库源码、数据库连接和运行环境；未运行 pnpm build、tsc、SQL migration、API 集成测试或上述人工验收。StudyTools 原仓库也未执行 npm build。不得将静态检查描述为构建或运行通过。
+
+## 已知未完成
+
+- 页面目前是路由/内容浏览骨架；笔顺画布、真实练习交互、作文批改 UI、预习/复习算法、测验答题与错题闭环尚未完整接线。
+- 课程数据已从旧项目抽取为本包内 TypeScript 快照（data/curriculum.data.ts），尚未转换为要求的 curriculum.json。
+- 家长聚合视图依赖学海 FamilyService 与权限策略，尚未实现。
+- 学科偏好 patch 需在真实 subjectPreference.ts 中保留原有存储键后合并；目标文件内容未提供，不能安全生成整文件替换。
