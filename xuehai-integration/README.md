@@ -20,6 +20,7 @@
 | 本目录路径 | 学海目标路径 |
 |---|---|
 | `web/features/chinese/**` | `apps/web/src/features/chinese/**` |
+| `web/components/SubjectEntryCard.tsx` | `apps/web/src/components/SubjectEntryCard.tsx` |
 | `server/routes/chinese.ts` | `apps/server/src/backend/routes/chinese.ts` |
 | `server/data/chineseExamBank.ts` | `apps/server/src/backend/data/chineseExamBank.ts` |
 | `server/controllers/**` | `apps/server/src/backend/controllers/**` |
