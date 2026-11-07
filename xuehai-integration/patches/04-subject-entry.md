@@ -16,7 +16,13 @@ export type SubjectKey = 'english' | 'math' | 'chinese';
 
 **目标文件：** `apps/web/src/features/shared/views/SubjectSelectView.tsx`
 
-在数学卡片之后、卡片列表结束之前插入第三张卡片；外层 className/组件结构沿用相邻卡片：
+先在文件 imports 中增加（按目标文件实际相对目录核对）：
+
+```tsx
+import { SubjectEntryCard } from '../../../components/SubjectEntryCard.tsx';
+```
+
+然后在数学卡片之后、卡片列表结束之前插入第三张卡片：
 
 ```tsx
 <SubjectEntryCard
