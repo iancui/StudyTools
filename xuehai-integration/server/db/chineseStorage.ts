@@ -109,6 +109,27 @@ export class ChineseStorage {
     }
   }
 
+
+  static async listPreviews(userId: string) {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT guide_id, completed_at FROM chinese_preview_records WHERE user_id=? ORDER BY completed_at DESC',
+      [userId],
+    );
+    return rows;
+  }
+
+  static async completePreview(userId: string, guideId: string) {
+    const safeGuideId = String(guideId || '').trim();
+    if (!safeGuideId || safeGuideId.length > 100) throw Object.assign(new Error('预习内容无效'), { status: 400 });
+    await pool.execute<ResultSetHeader>(
+      `INSERT INTO chinese_preview_records (id,user_id,guide_id)
+       VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE completed_at=completed_at`,
+      [randomUUID(), userId, safeGuideId],
+    );
+    return { guideId: safeGuideId, completed: true };
+  }
+
   static async listWrongQuestions(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT * FROM chinese_wrong_questions WHERE user_id=? ORDER BY last_wrong_at DESC',
