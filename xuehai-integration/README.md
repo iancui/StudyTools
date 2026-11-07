@@ -21,6 +21,7 @@
 |---|---|
 | `web/features/chinese/**` | `apps/web/src/features/chinese/**` |
 | `server/routes/chinese.ts` | `apps/server/src/backend/routes/chinese.ts` |
+| `server/data/chineseExamBank.ts` | `apps/server/src/backend/data/chineseExamBank.ts` |
 | `server/controllers/**` | `apps/server/src/backend/controllers/**` |
 | `server/services/**` | `apps/server/src/backend/services/**` |
 | `server/db/chineseStorage.ts` | `apps/server/src/backend/db/chineseStorage.ts` |
@@ -47,7 +48,7 @@
 5. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json`，检查每个用户的映射状态和记录数量。
 6. 只有核对通过后才执行 `node .../import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
 
-## 当前限制
+## 可选参考适配器\n\n`xuehai-integration/src/` 提供源类型、进度字段白名单、纯函数迁移计划和注入式 API 适配器，便于独立审计或复用；正式学海集成以 `web/`、`server/`、`database/` 目录为准，不需要把该目录复制到学海。\n\n## 当前限制
 
 学海仓库源码未提供给本次会话，因此不能验证目标路由、`getDbPool()`、`db.awardPoints()` 实际签名、users 表字段、tsconfig 路径和现有 layout renderer。页面已包含生字/词语/句子学习、笔顺自我检查、预习完成、错题复习与解决、年级综合测验、作文写作自检、档案和学习计时；尚未完成真正的手写识别、AI 作文批改、正式课次积分映射、家长聚合和端到端测试。不要将本包视为已经在学海构建通过的最终发布版。
 
