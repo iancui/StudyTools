@@ -108,8 +108,8 @@ export const recordChineseSentencePractice = (itemId: string, result: 'correct' 
 export const getChineseWrongQuestions = () => chineseRequest<any[]>('/wrong-questions');
 
 /** 保存一次错题；重复提交同一道题由服务端唯一键处理。 */
-export const saveChineseWrongQuestion = (body: unknown) =>
-  chineseRequest<unknown>('/wrong-questions', { method: 'POST', body: JSON.stringify(body) });
+export const saveChineseWrongQuestion = (body: Record<string, unknown>) =>
+  chineseRequest<unknown>('/wrong-questions', { method: 'POST', body: JSON.stringify({ ...body, requestId: body.requestId || crypto.randomUUID() }) });
 
 /** 获取测验历史。 */
 export const getChineseExams = () => chineseRequest<any[]>('/exams');
