@@ -153,7 +153,7 @@ export const saveChineseSentences = (completedIds: string[]) =>
 
 /** 提交测验结果；答案由服务端题库重新核验，积分由服务端决定。 */
 export const submitChineseExam = (body: Record<string, unknown>) =>
-  chineseRequest<ChineseExamRecordDTO & { pointsAward?: PointsAward }>('/exams', {
+  chineseRequest<ChineseExamRecordDTO & { pointsAward?: PointsAward; gradedAnswers: Record<string, { correct: boolean; correctAnswer: string; explanation: string }> }>('/exams', {
     method: 'POST', body: JSON.stringify({ ...body, requestId: body.requestId || crypto.randomUUID() }),
   });
 
