@@ -1,5 +1,7 @@
+import type { ExamQuestion, GradeId } from './chinese.ts';
+
 /** 由旧课程数据确定性生成的年级测验题库；服务端拥有同源可信副本并负责核验答案。 */
-export const CHINESE_EXAM_BANK = {
+export const CHINESE_EXAM_BANK: Record<GradeId, ExamQuestion[]> = {
   "g1": [
     {
       "id": "q-g1-auto-c-g1-1-pinyin",
@@ -2824,4 +2826,4 @@ export const CHINESE_EXAM_BANK = {
       "difficulty": "hard"
     }
   ]
-} as const;
+};
