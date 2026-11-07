@@ -1,62 +1,132 @@
-import type { ReactNode } from 'react';
-import type { RouteContext } from '../../../router/routes.tsx';
-import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA } from '../data/index.ts';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
+import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, EXAMS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
+import {
+  getChineseProgress, saveChineseProgress, getChineseCharacters, saveChineseCharacters,
+  getChineseWords, saveChineseWords, getChineseSentences, saveChineseSentences,
+  recordChineseCharacterPractice, recordChineseWordPractice, recordChineseSentencePractice,
+  submitChineseExam, submitChineseEssay, getChineseWrongQuestions, saveChineseWrongQuestion,
+  getChineseExams, getChineseEssays,
+} from '../api.ts';
 
-interface ViewProps { ctx: RouteContext }
-function Frame({ ctx, title, subtitle, children }: { ctx: RouteContext; title: string; subtitle: string; children?: ReactNode }) {
-  return (
-    <section className="space-y-5">
-      <div className="rounded-3xl border border-[#E7EEF8] bg-white p-6 shadow-sm">
-        <p className="text-sm text-[#7890B0]">CHINESE · 语文学习</p>
-        <h1 className="mt-2 text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-sm text-[#607797]">{subtitle}</p>
-      </div>
-      {children}
-      <div className="flex flex-wrap gap-2">
-        {GRADES_LIST.map((grade) => (
-          <span key={grade.id} className="rounded-full border border-[#E7EEF8] bg-white px-3 py-1 text-xs">{grade.name}</span>
-        ))}
-      </div>
-      <button type="button" onClick={() => ctx.navigate('/chinese')} className="text-sm text-blue-700">返回语文首页</button>
-    </section>
-  );
+interface ViewProps { ctx: { navigate: (route: string) => void } }
+function Frame({ctx,title,subtitle,children}:{ctx:ViewProps['ctx'];title:string;subtitle:string;children?:ReactNode}) {
+  return <section className="space-y-5">
+    <header className="rounded-3xl border border-[#E7EEF8] bg-white p-6 shadow-sm">
+      <p className="text-sm text-[#7890B0]">CHINESE · 语文学习</p><h1 className="mt-2 text-2xl font-bold">{title}</h1><p className="mt-2 text-sm text-[#607797]">{subtitle}</p>
+    </header>
+    {children}<button type="button" onClick={()=>ctx.navigate('/chinese')} className="text-sm text-blue-700">返回语文首页</button>
+  </section>;
 }
-function GradeContent({ ctx, title, subtitle, items }: { ctx: RouteContext; title: string; subtitle: string; items: unknown[] }) {
-  return <Frame ctx={ctx} title={title} subtitle={subtitle}>
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {items.slice(0, 36).map((value, index) => {
-        const item = value as Record<string, unknown>;
-        return <article key={String(item.id || index)} className="rounded-2xl border border-[#E7EEF8] bg-white p-4">
-          <h2 className="font-semibold">{String(item.char || item.word || item.title || item.question || '学习内容')}</h2>
-          <p className="mt-1 text-xs text-[#607797]">{String(item.pinyin || item.categoryLabel || item.difficulty || '')}</p>
-          <p className="mt-2 line-clamp-3 text-sm text-[#526B8D]">{String(item.exampleSentence || item.definition || item.originalText || item.promptText || item.question || '')}</p>
-        </article>;
-      })}
-    </div>
+function useGrade(){const [grade,setGrade]=useState<GradeId>('g3');return {grade,setGrade};}
+function GradePicker({value,onChange}:{value:GradeId;onChange:(v:GradeId)=>void}){
+  return <label className="flex items-center gap-2 text-sm text-[#607797]">学习年级
+    <select value={value} onChange={e=>onChange(e.target.value as GradeId)} className="rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-[#29466F]">
+      {GRADES_LIST.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
+    </select>
+  </label>;
+}
+function Notice({children,error=false}:{children:ReactNode;error?:boolean}){
+  return <p role="status" className={`rounded-xl px-3 py-2 text-sm ${error?'bg-rose-50 text-rose-700':'bg-blue-50 text-blue-700'}`}>{children}</p>;
+}
+function Card({title,meta,children}:{title:string;meta?:string;children?:ReactNode}){
+  return <article className="rounded-2xl border border-[#E7EEF8] bg-white p-4 shadow-sm"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-semibold text-[#29466F]">{title}</h2>{meta&&<span className="text-xs text-[#7890B0]">{meta}</span>}</div>{children&&<div className="mt-3 space-y-2 text-sm text-[#526B8D]">{children}</div>}</article>;
+}
+function Search({value,onChange,placeholder}:{value:string;onChange:(v:string)=>void;placeholder:string}){
+  return <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-[#D9E5F4] bg-white px-3 py-2 text-sm sm:max-w-xs"/>;
+}
+function useRemoteIds(kind:'characters'|'words'|'sentences'){
+  const [ids,setIds]=useState<string[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
+  useEffect(()=>{let live=true;const load=kind==='characters'?getChineseCharacters:kind==='words'?getChineseWords:getChineseSentences;
+    void load().then(rows=>{if(!live)return;const state=kind==='sentences'?'is_completed':'is_mastered',key=kind==='characters'?'character_id':kind==='words'?'word_id':'sentence_id';setIds(rows.filter(r=>Boolean(r[state])).map(r=>String(r[key])));})
+    .catch(e=>{if(live)setError(e instanceof Error?e.message:'读取学习记录失败');}).finally(()=>{if(live)setLoading(false);});
+    return()=>{live=false;};
+  },[kind]);
+  const persist=async(next:string[])=>{if(kind==='characters')await saveChineseCharacters(next);else if(kind==='words')await saveChineseWords(next);else await saveChineseSentences(next);setIds(next);};
+  return {ids,loading,error,persist};
+}
+
+export function ChineseHomeView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const [progress,setProgress]=useState<any>(null),[error,setError]=useState('');
+  useEffect(()=>{let live=true;void getChineseProgress().then(p=>{if(live)setProgress(p);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'学习概览暂不可用');});return()=>{live=false;};},[]);
+  const links=[['生字学习','/chinese/characters','汉字、拼音、部首与笔画'],['笔顺练习','/chinese/characters/practice','书写与自我检查'],['词语学习','/chinese/words','词义、近反义词和例句'],['句子学习','/chinese/sentences','修辞、文言和仿写'],['作文练习','/chinese/essays','审题、提纲和写作'],['预习','/chinese/preview','课前导读'],['复习','/chinese/review','巩固尚未掌握的内容'],['测验','/chinese/exam','题库与自动评分'],['学习档案','/chinese/archive','错题、测验和作文记录'],['学习设置','/chinese/settings','年级、学期和教材版本']];
+  return <Frame ctx={ctx} title="语文学习首页" subtitle="从识字、词语到阅读表达，循序渐进建立语文能力。">
+    <GradePicker value={grade} onChange={setGrade}/>{error&&<Notice error>{error}</Notice>}
+    {progress&&<div className="grid gap-3 sm:grid-cols-3"><Card title={String(progress.grade||'未设置')} meta="学习年级"/><Card title={String(progress.total_study_minutes??0)} meta="累计学习分钟"/><Card title={String(progress.textbook_version||'默认教材')} meta="教材版本"/></div>}
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{links.map(([name,path,desc])=><button key={path} onClick={()=>ctx.navigate(path)} className="rounded-2xl border border-[#E7EEF8] bg-white p-5 text-left shadow-sm hover:shadow-md"><strong>{name}</strong><span className="mt-2 block text-sm text-[#607797]">{desc}</span></button>)}</div>
   </Frame>;
 }
 
-export function ChineseHomeView({ ctx }: ViewProps) {
-  return <Frame ctx={ctx} title="语文学习首页" subtitle="生字 · 词语 · 句子 · 作文 · 预习 · 复习 · 测验">
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {[
-        ['生字学习','/chinese/characters'],['笔顺练习','/chinese/characters/practice'],
-        ['词语学习','/chinese/words'],['句子学习','/chinese/sentences'],
-        ['作文练习','/chinese/essays'],['预习','/chinese/preview'],
-        ['复习','/chinese/review'],['测验','/chinese/exam'],
-        ['学习档案','/chinese/archive'],['学习设置','/chinese/settings'],
-      ].map(([label,path]) => <button key={path} type="button" onClick={() => ctx.navigate(path)}
-        className="rounded-2xl border border-[#E7EEF8] bg-white p-5 text-left shadow-sm hover:bg-[#F4F8FF]">{label}</button>)}
-    </div>
+export function ChineseCharactersView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const remote=useRemoteIds('characters');const [query,setQuery]=useState(''),[selected,setSelected]=useState<CharacterItem|null>(null),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+  const items=CHARACTERS_DATA[grade]||[],filtered=items.filter(x=>[x.char,x.pinyin,x.radical,...x.meanings].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const practice=async()=>{if(!selected)return;const ok=answer.trim()===selected.char;setBusy(true);try{await recordChineseCharacterPractice(selected.id,ok?'correct':'wrong');if(ok&&!remote.ids.includes(selected.id))await remote.persist([...remote.ids,selected.id]);if(!ok)await saveChineseWrongQuestion({questionId:selected.id,questionType:'character',questionContent:`看拼音写汉字：${selected.pinyin}`});setNotice(ok?'回答正确，练习已保存。':`正确汉字是「${selected.char}」，已加入错题记录。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
+  const toggle=async()=>{if(!selected)return;const next=remote.ids.includes(selected.id)?remote.ids.filter(x=>x!==selected.id):[...remote.ids,selected.id];try{await remote.persist(next);setNotice('掌握状态已保存。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
+  return <Frame ctx={ctx} title="生字学习" subtitle="查看读音、字义和易错发音，通过练习巩固记忆。">
+    <div className="flex flex-wrap justify-between gap-3"><GradePicker value={grade} onChange={v=>{setGrade(v);setSelected(null);}}/><Search value={query} onChange={setQuery} placeholder="搜索汉字、拼音或字义"/></div>
+    {remote.loading&&<Notice>正在读取掌握记录…</Notice>}{remote.error&&<Notice error>{remote.error}</Notice>}{notice&&<Notice>{notice}</Notice>}
+    <p className="text-sm text-[#607797]">本年级 {items.length} 字 · 已掌握 {items.filter(x=>remote.ids.includes(x.id)).length} 字</p>
+    <div className="grid gap-3 lg:grid-cols-[1fr_0.9fr]"><div className="grid gap-2 sm:grid-cols-2">{filtered.map(x=><button key={x.id} onClick={()=>{setSelected(x);setAnswer('');}} className={`rounded-2xl border p-3 text-left ${selected?.id===x.id?'border-blue-400 bg-blue-50':'border-[#E7EEF8] bg-white'}`}><strong className="text-2xl">{x.char}</strong><span className="ml-3 text-sm">{x.pinyin}</span><span className="mt-1 block text-xs text-[#7890B0]">{x.meanings[0]}</span></button>)}</div>
+    {selected?<Card title={selected.char} meta={selected.pinyin}><p>部首：{selected.radical} · 结构：{selected.structure} · {selected.strokeCount}画</p><p>{selected.meanings.join('；')}</p><p>组词：{selected.phrases.join('、')}</p><p>例句：{selected.exampleSentence}</p>{selected.mnemonic&&<p>识记提示：{selected.mnemonic}</p>}{selected.phoneticTrap&&<p className="rounded-lg bg-amber-50 p-2 text-amber-800">{selected.phoneticTrap.label}：{selected.phoneticTrap.tip}</p>}<button onClick={()=>void toggle()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">{remote.ids.includes(selected.id)?'取消掌握':'标记已掌握'}</button><button onClick={()=>ctx.navigate('/chinese/characters/practice')} className="ml-2 rounded-lg border px-3 py-2">笔顺练习</button><label className="block">看拼音写汉字<input value={answer} onChange={e=>setAnswer(e.target.value)} placeholder={selected.pinyin} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><button disabled={busy||!answer.trim()} onClick={()=>void practice()} className="rounded-lg bg-blue-600 px-3 py-2 text-white disabled:opacity-50">提交练习</button></Card>:<div className="rounded-2xl border border-dashed p-8 text-center text-sm text-[#7890B0]">选择一个汉字查看讲解与练习。</div>}</div>
   </Frame>;
 }
-export function ChineseCharactersView({ctx}:ViewProps) { return <GradeContent ctx={ctx} title="生字学习" subtitle="汉字、拼音、部首、笔画与例句" items={CHARACTERS_DATA.g3}/>; }
-export function ChineseCharacterPracticeView({ctx}:ViewProps) { return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="书写画布和逐笔反馈接入待完成。"/>; }
-export function ChineseWordsView({ctx}:ViewProps) { return <GradeContent ctx={ctx} title="词语学习" subtitle="词义、词性、近反义词与例句" items={WORDS_DATA.g3}/>; }
-export function ChineseSentencesView({ctx}:ViewProps) { return <GradeContent ctx={ctx} title="句子学习" subtitle="修辞赏析、文言名句、病句诊治与仿写" items={SENTENCES_DATA.g3}/>; }
-export function ChineseEssaysView({ctx}:ViewProps) { return <GradeContent ctx={ctx} title="作文练习" subtitle="审题、提纲、范文与写作记录" items={ESSAYS_DATA.g3}/>; }
-export function ChinesePreviewView({ctx}:ViewProps) { return <Frame ctx={ctx} title="课前预习" subtitle="预习流程与服务端记录接线待完成。"/>; }
-export function ChineseReviewView({ctx}:ViewProps) { return <Frame ctx={ctx} title="智能复习" subtitle="复习算法与服务端统计接线待完成。"/>; }
-export function ChineseExamView({ctx}:ViewProps) { return <GradeContent ctx={ctx} title="单元测验" subtitle="题目展示已接入课程快照；答题交互与提交待完成。" items={EXAMS_DATA.g3}/>; }
-export function ChineseArchiveView({ctx}:ViewProps) { return <Frame ctx={ctx} title="学习档案" subtitle="进度、错题、测验和作文记录由学海服务端提供，聚合视图待完成。"/>; }
-export function ChineseSettingsView({ctx}:ViewProps) { return <Frame ctx={ctx} title="语文学习设置" subtitle="年级、学期与教材版本设置接线待完成。"/>; }
+
+export function ChineseCharacterPracticeView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const [index,setIndex]=useState(0),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);const items=CHARACTERS_DATA[grade]||[];const item=items[index%Math.max(items.length,1)];
+  const submit=async()=>{if(!item)return;const ok=answer.trim()===item.char;setBusy(true);try{await recordChineseCharacterPractice(item.id,ok?'correct':'wrong');if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'character-writing',questionContent:`目标字 ${item.char}，笔顺：${item.strokeOrderHint}`});setNotice(ok?'自我检查通过，练习已记录。':`目标字是「${item.char}」，请对照笔顺提示再练。`);}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}finally{setBusy(false);}};
+  return <Frame ctx={ctx} title="笔顺与书写练习" subtitle="逐笔学习并自我检查；当前版本不提供 AI 手写识别。"><GradePicker value={grade} onChange={v=>{setGrade(v);setIndex(0);setAnswer('');}}/>{item&&<Card title={item.char} meta={item.pinyin}><p>{item.strokeOrderHint}</p><div className="flex flex-wrap gap-2">{(item.strokeOrderSteps||[]).map((s,i)=><span key={i} className="rounded-lg border bg-[#F7FAFF] px-3 py-2">第{i+1}笔：{s}</span>)}</div><label>完成书写后输入目标字<input value={answer} onChange={e=>setAnswer(e.target.value)} className="mt-1 w-full rounded-lg border px-3 py-2"/></label><div className="flex gap-2"><button disabled={busy||!answer.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">检查并记录</button><button onClick={()=>{setIndex(i=>(i+1)%items.length);setAnswer('');setNotice('');}} className="rounded-lg border px-3 py-2">下一个</button></div>{notice&&<Notice>{notice}</Notice>}</Card>}</Frame>;
+}
+
+export function ChineseWordsView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const remote=useRemoteIds('words');const [query,setQuery]=useState(''),[notice,setNotice]=useState('');const items=WORDS_DATA[grade]||[];const filtered=items.filter(x=>[x.word,x.pinyin,x.definition,x.pos].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const toggle=async(item:WordItem)=>{const done=remote.ids.includes(item.id),next=done?remote.ids.filter(x=>x!==item.id):[...remote.ids,item.id];try{await remote.persist(next);if(!done)await recordChineseWordPractice(item.id,'correct');setNotice('学习状态已保存。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
+  return <Frame ctx={ctx} title="词语学习" subtitle="结合词义、词性、近反义词和例句积累表达。"><div className="flex flex-wrap justify-between gap-3"><GradePicker value={grade} onChange={setGrade}/><Search value={query} onChange={setQuery} placeholder="搜索词语、拼音或释义"/></div>{remote.loading&&<Notice>读取掌握记录…</Notice>}{remote.error&&<Notice error>{remote.error}</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">已掌握 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p><div className="grid gap-3 md:grid-cols-2">{filtered.map(x=><Card key={x.id} title={x.word} meta={x.pinyin}><p>{x.pos} · {x.definition}</p><p>近义词：{x.synonyms.join('、')||'暂无'}</p><p>反义词：{x.antonyms.join('、')||'暂无'}</p><p>例句：{x.exampleSentence}</p>{x.culturalNote&&<p>文化拓展：{x.culturalNote}</p>}<button onClick={()=>void toggle(x)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">{remote.ids.includes(x.id)?'取消掌握':'掌握并练习'}</button></Card>)}</div></Frame>;
+}
+
+export function ChineseSentencesView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const remote=useRemoteIds('sentences');const [category,setCategory]=useState('all'),[reveal,setReveal]=useState<Record<string,boolean>>({}),[notice,setNotice]=useState('');const items=SENTENCES_DATA[grade]||[];const filtered=items.filter(x=>category==='all'||x.category===category);
+  const mark=async(item:SentenceItem,ok:boolean)=>{try{await recordChineseSentencePractice(item.id,ok?'correct':'wrong');if(ok&&!remote.ids.includes(item.id))await remote.persist([...remote.ids,item.id]);if(!ok)await saveChineseWrongQuestion({questionId:item.id,questionType:'sentence',questionContent:item.originalText});setNotice(ok?'完成记录已保存。':'已加入错题，建议稍后重练。');}catch(e){setNotice(e instanceof Error?e.message:'保存失败');}};
+  return <Frame ctx={ctx} title="句子学习" subtitle="研习修辞、文言名句、病句诊治和经典仿写。"><div className="flex flex-wrap gap-3"><GradePicker value={grade} onChange={setGrade}/><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-xl border px-3 py-2 text-sm"><option value="all">全部句式</option><option value="rhetoric">修辞赏析</option><option value="classical">文言名句</option><option value="error_correction">病句诊治</option><option value="imitation">经典仿写</option></select></div>{remote.loading&&<Notice>读取完成记录…</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">已完成 {items.filter(x=>remote.ids.includes(x.id)).length}/{items.length}</p><div className="space-y-3">{filtered.map(x=><Card key={x.id} title={x.title} meta={x.categoryLabel}><p className="font-medium">“{x.originalText}”</p><p>{x.analysis}</p>{x.modernTranslation&&<p>译文：{x.modernTranslation}</p>}{x.keyDevices&&<p>关键手法：{x.keyDevices.join('、')}</p>}<p>练习要求：{x.practicePrompt}</p><div className="flex flex-wrap gap-2"><button onClick={()=>setReveal(v=>({...v,[x.id]:!v[x.id]}))} className="rounded-lg border px-3 py-2">{reveal[x.id]?'隐藏参考':'查看参考答案'}</button><button onClick={()=>void mark(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void mark(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button></div>{reveal[x.id]&&<Notice>{x.practiceAnswer}</Notice>}</Card>)}</div></Frame>;
+}
+
+export function ChineseEssaysView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const items=ESSAYS_DATA[grade]||[];const [selectedId,setSelectedId]=useState(''),[content,setContent]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);const selected=items.find(x=>x.id===selectedId)||items[0];
+  const submit=async()=>{if(!selected||!content.trim()){setNotice('请先选择题目并完成写作。');return;}setBusy(true);try{await submitChineseEssay({essayId:selected.id,title:selected.title,prompt:selected.promptText,content,feedback:{selfReflection:'学生自我检查；当前版本不提供自动评分。'}});setNotice('作文已保存，可在学习档案中查看。');}catch(e){setNotice(e instanceof Error?e.message:'作文保存失败');}finally{setBusy(false);}};
+  return <Frame ctx={ctx} title="作文练习" subtitle="先审题列纲，再完成写作；保存原文供后续批改。"><GradePicker value={grade} onChange={v=>{setGrade(v);setSelectedId('');setContent('');}}/><div className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]"><div className="space-y-2">{items.map(x=><button key={x.id} onClick={()=>{setSelectedId(x.id);setContent('');}} className={`w-full rounded-xl border p-3 text-left text-sm ${selected?.id===x.id?'border-blue-400 bg-blue-50':'border-[#E7EEF8] bg-white'}`}>{x.title}</button>)}</div>{selected&&<Card title={selected.title} meta={selected.gradeTier}><p>写作任务：{selected.promptText}</p><p>提纲建议：{selected.outlineAdvice.join('；')}</p><p>写作技巧：{selected.keyTechniques.join('、')}</p><details className="rounded-xl bg-[#F7FAFF] p-3"><summary className="cursor-pointer font-medium">展开范文参考</summary><h3 className="font-semibold">{selected.modelEssay.title}</h3>{selected.modelEssay.paragraphs.map((p,i)=><p key={i}>{p}</p>)}</details><textarea rows={12} value={content} onChange={e=>setContent(e.target.value)} placeholder="在这里完成作文…" className="w-full rounded-xl border p-3 leading-7"/><p className="text-xs text-[#7890B0]">字数：{[...content.trim()].length} · 自动评分尚未接入</p><button disabled={busy||!content.trim()} onClick={()=>void submit()} className="rounded-lg bg-[#29466F] px-4 py-2 text-white disabled:opacity-50">{busy?'保存中…':'保存作文'}</button></Card>}</div>{notice&&<Notice>{notice}</Notice>}</Frame>;
+}
+
+export function ChinesePreviewView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const [step,setStep]=useState(0),[hints,setHints]=useState<Record<number,boolean>>({});const guide=PREVIEW_GUIDES[grade],steps=guide?.steps||[],current=steps[step];
+  return <Frame ctx={ctx} title="课前预习" subtitle="按导读步骤了解背景、重点字词和思考问题。"><GradePicker value={grade} onChange={v=>{setGrade(v);setStep(0);setHints({});}}/>{guide?<Card title={guide.lessonTitle} meta={`第 ${Math.min(step+1,steps.length)} / ${steps.length} 步`}>{current&&<><h3 className="font-semibold">{current.title}</h3><p>{current.description}</p><ul className="list-disc pl-5">{current.keyPoints.map((x,i)=><li key={i}>{x}</li>)}</ul></>}<div className="flex gap-2"><button disabled={!step} onClick={()=>setStep(v=>v-1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">上一步</button><button disabled={step>=steps.length-1} onClick={()=>setStep(v=>v+1)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white disabled:opacity-40">下一步</button></div>{guide.questions.map((q,i)=><div key={i} className="rounded-xl bg-[#F7FAFF] p-3"><p className="font-medium">{q.question}</p><button onClick={()=>setHints(v=>({...v,[i]:!v[i]}))} className="mt-2 text-sm text-blue-700">{hints[i]?'隐藏提示':'查看思考提示'}</button>{hints[i]&&<p className="mt-2">{q.hint}</p>}</div>)}</Card>:<Notice error>当前年级暂无预习导读内容。</Notice>}</Frame>;
+}
+
+export function ChineseReviewView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const [charIds,setChar]=useState<string[]>([]),[wordIds,setWord]=useState<string[]>([]),[sentenceIds,setSentence]=useState<string[]>([]),[loading,setLoading]=useState(true),[notice,setNotice]=useState('');
+  useEffect(()=>{let live=true;Promise.all([getChineseCharacters(),getChineseWords(),getChineseSentences()]).then(([c,w,s])=>{if(!live)return;setChar(c.filter(x=>x.is_mastered).map(x=>String(x.character_id)));setWord(w.filter(x=>x.is_mastered).map(x=>String(x.word_id)));setSentence(s.filter(x=>x.is_completed).map(x=>String(x.sentence_id)));}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'复习记录读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
+  const todo=[...(CHARACTERS_DATA[grade]||[]).filter(x=>!charIds.includes(x.id)).map(x=>({id:x.id,title:x.char,meta:x.pinyin,kind:'character' as const})),...(WORDS_DATA[grade]||[]).filter(x=>!wordIds.includes(x.id)).map(x=>({id:x.id,title:x.word,meta:x.pinyin,kind:'word' as const})),...(SENTENCES_DATA[grade]||[]).filter(x=>!sentenceIds.includes(x.id)).map(x=>({id:x.id,title:x.title,meta:x.categoryLabel,kind:'sentence' as const}))];
+  const mark=async(item:typeof todo[number],correct:boolean)=>{try{if(item.kind==='character'){await recordChineseCharacterPractice(item.id,correct?'correct':'wrong');if(correct){const n=[...charIds,item.id];await saveChineseCharacters(n);setChar(n);}}else if(item.kind==='word'){await recordChineseWordPractice(item.id,correct?'correct':'wrong');if(correct){const n=[...wordIds,item.id];await saveChineseWords(n);setWord(n);}}else{await recordChineseSentencePractice(item.id,correct?'correct':'wrong');if(correct){const n=[...sentenceIds,item.id];await saveChineseSentences(n);setSentence(n);}}if(!correct)await saveChineseWrongQuestion({questionId:item.id,questionType:item.kind,questionContent:item.title});setNotice(correct?'复习完成并已保存。':'已加入错题记录，稍后再练。');}catch(e){setNotice(e instanceof Error?e.message:'复习记录保存失败');}};
+  return <Frame ctx={ctx} title="复习巩固" subtitle="优先复习尚未掌握的内容；自评正确后同步掌握状态。"><GradePicker value={grade} onChange={setGrade}/>{loading&&<Notice>正在整理复习清单…</Notice>}{notice&&<Notice>{notice}</Notice>}<p className="text-sm text-[#607797]">待复习 {todo.length} 项</p><div className="grid gap-3 sm:grid-cols-2">{todo.slice(0,60).map(x=><Card key={x.id} title={x.title} meta={x.meta}><div className="flex gap-2"><button onClick={()=>void mark(x,true)} className="rounded-lg bg-[#29466F] px-3 py-2 text-white">我已掌握</button><button onClick={()=>void mark(x,false)} className="rounded-lg border border-rose-200 px-3 py-2 text-rose-700">仍需练习</button></div></Card>)}</div>{!loading&&!todo.length&&<Notice>当前年级的生字、词语和句子均已标记掌握。</Notice>}</Frame>;
+}
+
+function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function stableQuestion(q:ExamQuestion){if(!q.options)return {q,answer:String(q.correctAnswer)};const answer=typeof q.correctAnswer==='number'?q.options[q.correctAnswer]:String(q.correctAnswer);const options=q.options.map((value,i)=>({value,rank:hash(q.id+':'+i)})).sort((a,b)=>a.rank-b.rank).map(x=>x.value);return {q:{...q,options},answer};}
+
+export function ChineseExamView({ctx}:ViewProps){
+  const {grade,setGrade}=useGrade();const [answers,setAnswers]=useState<Record<string,string>>({}),[result,setResult]=useState<{score:number;correct:number;total:number}|null>(null),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
+  const questions=useMemo(()=>([...(EXAMS_DATA[grade]||[])].sort((a,b)=>hash(a.id)-hash(b.id)).slice(0,10).map(stableQuestion)),[grade]);
+  const submit=async()=>{if(!questions.length)return;const correct=questions.filter(x=>(answers[x.q.id]||'').trim().toLowerCase()===x.answer.trim().toLowerCase()).length,score=Math.round(correct/questions.length*100);setBusy(true);try{const response=await submitChineseExam({lessonId:`grade-${grade}-comprehensive`,score,totalQuestions:questions.length,correctQuestions:correct,durationSeconds:0,answers});setResult({score,correct,total:questions.length});for(const x of questions.filter(q=>(answers[q.q.id]||'').trim().toLowerCase()!==q.answer.trim().toLowerCase()))await saveChineseWrongQuestion({questionId:x.q.id,questionType:x.q.category,questionContent:JSON.stringify({question:x.q.question,options:x.q.options,correctAnswer:x.answer,studentAnswer:answers[x.q.id]||''})});setNotice((response as any)?.pointsAward?.awarded?'测验已保存，首次达标奖励已由学海积分服务处理。':'测验已保存。');}catch(e){setNotice(e instanceof Error?e.message:'测验提交失败');}finally{setBusy(false);}};
+  return <Frame ctx={ctx} title="年级综合测验" subtitle="题目和选择题选项顺序稳定；提交后自动评分并保存错题。"><GradePicker value={grade} onChange={v=>{setGrade(v);setAnswers({});setResult(null);setNotice('');}}/><p className="text-xs text-[#7890B0]">当前使用年级综合测验作为积分去重单元；逐课测验需进一步接入学海正式课次 ID。</p><div className="space-y-3">{questions.map(({q})=><Card key={q.id} title={q.question} meta={`${q.difficulty} · ${q.category}`}>{q.type==='choice'&&q.options?.map((option,i)=><label key={i} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#E7EEF8] p-2"><input type="radio" name={q.id} checked={answers[q.id]===option} onChange={()=>setAnswers(v=>({...v,[q.id]:option}))}/>{option}</label>)}{q.type==='fill'&&<input value={answers[q.id]||''} onChange={e=>setAnswers(v=>({...v,[q.id]:e.target.value}))} className="w-full rounded-lg border px-3 py-2" placeholder="请输入答案"/>}{result&&<Notice>参考答案：{String(q.correctAnswer)}。{q.explanation}</Notice>}</Card>)}</div><button disabled={busy||!questions.length} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>{result&&<Notice>得分 {result.score} 分，答对 {result.correct}/{result.total} 题。</Notice>}{notice&&<Notice>{notice}</Notice>}</Frame>;
+}
+
+export function ChineseArchiveView({ctx}:ViewProps){
+  const [progress,setProgress]=useState<any>(null),[wrong,setWrong]=useState<any[]>([]),[exams,setExams]=useState<any[]>([]),[essays,setEssays]=useState<any[]>([]),[loading,setLoading]=useState(true),[notice,setNotice]=useState('');
+  useEffect(()=>{let live=true;Promise.all([getChineseProgress(),getChineseWrongQuestions(),getChineseExams(),getChineseEssays()]).then(([p,w,e,a])=>{if(!live)return;setProgress(p);setWrong(w);setExams(e);setEssays(a);}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'档案读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
+  return <Frame ctx={ctx} title="学习档案" subtitle="汇总服务端保存的学习配置、错题、测验和作文记录。">{loading&&<Notice>正在读取档案…</Notice>}{notice&&<Notice error>{notice}</Notice>}<div className="grid gap-3 sm:grid-cols-4"><Card title={String(progress?.total_study_minutes??0)} meta="累计学习分钟"/><Card title={String(wrong.length)} meta="错题记录"/><Card title={String(exams.length)} meta="测验次数"/><Card title={String(essays.length)} meta="作文记录"/></div><Card title="学习配置"><p>年级：{String(progress?.grade||'未设置')}</p><p>学期：{String(progress?.semester||'未设置')}</p><p>教材：{String(progress?.textbook_version||'未设置')}</p></Card><Card title="最近测验">{exams.slice(0,8).map((x,i)=><p key={String(x.id||i)}>{x.created_at||''} · {x.score} 分 · {x.passed?'达标':'继续努力'}</p>)}</Card><Card title="最近作文">{essays.slice(0,8).map((x,i)=><p key={String(x.id||i)}>{x.title||'作文练习'} · {x.word_count||0} 字 · {x.created_at||''}</p>)}</Card><Card title="错题清单">{wrong.slice(0,12).map((x,i)=><p key={String(x.id||i)}>{x.question_content||x.question_id} · 错误 {x.wrong_count} 次</p>)}</Card></Frame>;
+}
+
+export function ChineseSettingsView({ctx}:ViewProps){
+  const [grade,setGrade]=useState<GradeId>('g3'),[semester,setSemester]=useState<'s1'|'s2'>('s1'),[version,setVersion]=useState('default'),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+  useEffect(()=>{let live=true;void getChineseProgress().then((p:any)=>{if(!live||!p)return;if(GRADES_LIST.some(x=>x.id===p.grade))setGrade(p.grade);setSemester(p.semester==='s2'?'s2':'s1');setVersion(String(p.textbook_version||'default'));}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'设置读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
+  const save=async()=>{setBusy(true);try{await saveChineseProgress({grade,semester,textbookVersion:version});setNotice('学习设置已保存到学海。');}catch(e){setNotice(e instanceof Error?e.message:'设置保存失败');}finally{setBusy(false);}};
+  return <Frame ctx={ctx} title="语文学习设置" subtitle="设置学习年级、学期和教材版本；配置由学海服务端保存。">{loading&&<Notice>正在读取设置…</Notice>}<Card title="学习年级"><GradePicker value={grade} onChange={setGrade}/></Card><Card title="学习学期"><div className="flex gap-2"><button onClick={()=>setSemester('s1')} className={`rounded-lg border px-4 py-2 ${semester==='s1'?'border-blue-400 bg-blue-50':''}`}>上册</button><button onClick={()=>setSemester('s2')} className={`rounded-lg border px-4 py-2 ${semester==='s2'?'border-blue-400 bg-blue-50':''}`}>下册</button></div></Card><Card title="教材版本"><input value={version} onChange={e=>setVersion(e.target.value)} className="w-full rounded-lg border px-3 py-2"/></Card><button disabled={busy} onClick={()=>void save()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white">{busy?'保存中…':'保存设置'}</button>{notice&&<Notice>{notice}</Notice>}</Frame>;
+}
