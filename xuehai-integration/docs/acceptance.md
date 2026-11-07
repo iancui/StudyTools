@@ -8,7 +8,7 @@
 4. **进度真源**：没有在语文运行时写入 localStorage 学习进度；只保留学海 token。历史迁移读取由用户显式导出的旧数据，不自动读取浏览器存储。通过（静态检查）。
 5. **SQL 安全**：021_chinese.sql 仅 CREATE TABLE IF NOT EXISTS；不含破坏性删表语句、无外键；user_id VARCHAR(36)，业务 id VARCHAR(64)。通过（静态检查）。
 6. **参数化 SQL**：chineseStorage.ts 使用 mysql2 execute 参数占位符；动态表名/列名仅来自代码内固定资源白名单。通过（静态检查，未连真实数据库）。
-7. **路由与响应**：routes/chinese.ts 注册 17 个端点；Controller 统一返回 { code: 200, message: 'success', data }，异常 next(e)。通过（静态核对）；尚未接入学海 routes/index.ts，需应用 patch 05。
+7. **路由与响应**：routes/chinese.ts 注册 19 个端点；Controller 统一返回 { code: 200, message: 'success', data }，异常 next(e)。通过（静态核对）；尚未接入学海 routes/index.ts，需应用 patch 05。
 8. **文档与人工验收**：5 个宿主 patch 文件、API 契约、数据映射和 5 步人工验收文档已交付。人工验收未执行，目标仓库未提供。部分通过。
 
 ## 5 步人工验收（待学海仓库执行）
@@ -16,7 +16,7 @@
 1. 备份 StudyTools 旧 MySQL 数据库、旧浏览器进度导出 JSON 与学海数据库；在学海测试库执行 021_chinese.sql。
 2. 配置两套数据库环境变量，运行 import-studytools.mjs dry-run，检查用户名映射和每类记录数量；核对后再加 --apply --confirm。
 3. 启动学海 pnpm workspace，确认 shared、web、server 构建通过；应用五份 patch 后打开 /chinese。
-4. 接入服务端可信题库后，完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同一 requestId 重试不重复建记录，同课重复达标不重复发分。当前版本成绩未服务端核验，不发积分。
+4. 接入服务端可信题库后，完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同一 requestId 重试不重复建记录，同课重复达标不重复发分。当前版本成绩由服务端题库核验；因尚未关联正式课次，暂不发积分。
 5. 使用家长账号查看绑定孩子的语文进度，确认 FamilyService.assertStudentOwned 生效。
 
 ## 未运行
