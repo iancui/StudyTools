@@ -36,15 +36,16 @@
 - 墨滴、签到、连续签到、旧徽章全部不迁移。
 - 只有**服务端核验通过**、达到 70 分且绑定正式 lessonId 时，后端才允许调用 `db.awardPoints`；sourceKey 为 `chinese:quiz:<lessonId>:first`。当前年级题库已复制到服务端并核验；但源题库没有正式 lessonId 映射，因此成绩可核验保存，暂不发积分。
 - 预习、复习、练习、作文不发分。
-- 历史迁移只按用户名/可用邮箱对账学海用户，不创建用户；默认 dry-run，不发积分。
+- 历史迁移只按旧库 username 对账学海用户，不创建用户；默认 dry-run，不发积分。
 
 ## 数据迁移操作
 
 1. 分别备份 StudyTools 旧 MySQL 数据库、学海数据库。
 2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username 唯一匹配（旧 StudyTools users 表没有 email 字段）。
 3. 配置 `STUDYTOOLS_DB_*` 与学海 `DB_*` 环境变量。
-4. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs`，检查每个用户的映射状态和记录数量。
-5. 只有核对通过后才执行 `node .../import-studytools.mjs --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
+4. 若需导入旧浏览器进度，先导出 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总成以完整 key 为属性名的 JSON 文件；再传 `--progress-json=/安全路径/legacy-progress.json`。全局匿名 key 不会自动关联用户。
+5. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json`，检查每个用户的映射状态和记录数量。
+6. 只有核对通过后才执行 `node .../import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
 
 ## 当前限制
 
