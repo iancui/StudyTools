@@ -348,6 +348,7 @@ export function ChineseExamView({ctx}:ViewProps){
       </Card>)}
     </div>
     <button disabled={busy||!questions.length||Boolean(result)} onClick={()=>void submit()} className="rounded-xl bg-[#29466F] px-5 py-3 text-white disabled:opacity-50">{busy?'提交中…':'提交测验并评分'}</button>
+    {!result&&notice&&!busy&&<button onClick={()=>{setAnswers({});setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}} className="rounded-lg border px-3 py-2">放弃本次并重新开始</button>}
     {result&&<div className="space-y-2">
       <Notice>得分 {result.score} 分，答对 {result.correct}/{result.total} 题。</Notice>
       <button onClick={()=>{setAnswers({});setResult(null);setGraded({});setNotice('');setRequestId(crypto.randomUUID());setStartedAt(Date.now());}} className="rounded-lg border px-3 py-2">重新测验</button>
