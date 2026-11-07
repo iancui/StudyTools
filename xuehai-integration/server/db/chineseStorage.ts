@@ -73,24 +73,40 @@ export class ChineseStorage {
     return this.listDetail(userId, kind);
   }
 
-  static async recordPractice(userId: string, kind: Kind, itemId: string, result: 'correct' | 'wrong') {
+  static async recordPractice(userId: string, kind: Kind, itemId: string, result: 'correct' | 'wrong', eventId: string) {
     const cfg = resource[kind];
-    const correct = result === 'correct' ? 1 : 0;
-    const wrong = result === 'wrong' ? 1 : 0;
-    await pool.execute<ResultSetHeader>(
-      `INSERT INTO ${cfg.table}
-       (id,user_id,${cfg.item},practice_count,correct_count,wrong_count,first_learned_at,last_practiced_at)
-       VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-       ON DUPLICATE KEY UPDATE practice_count=practice_count+1,
-       correct_count=correct_count+VALUES(correct_count), wrong_count=wrong_count+VALUES(wrong_count),
-       last_practiced_at=CURRENT_TIMESTAMP`,
-      [randomUUID(), userId, itemId, 1, correct, wrong],
-    );
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT * FROM ${cfg.table} WHERE user_id=? AND ${cfg.item}=? LIMIT 1`,
-      [userId, itemId],
-    );
-    return rows[0] || null;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [event] = await connection.execute<ResultSetHeader>(
+        'INSERT IGNORE INTO chinese_practice_events (id,user_id,event_id,item_kind,item_id,result) VALUES (?,?,?,?,?,?)',
+        [randomUUID(), userId, eventId, kind, itemId, result],
+      );
+      if (event.affectedRows > 0) {
+        const correct = result === 'correct' ? 1 : 0;
+        const wrong = result === 'wrong' ? 1 : 0;
+        await connection.execute<ResultSetHeader>(
+          `INSERT INTO ${cfg.table}
+           (id,user_id,${cfg.item},practice_count,correct_count,wrong_count,first_learned_at,last_practiced_at)
+           VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+           ON DUPLICATE KEY UPDATE practice_count=practice_count+1,
+           correct_count=correct_count+VALUES(correct_count), wrong_count=wrong_count+VALUES(wrong_count),
+           last_practiced_at=CURRENT_TIMESTAMP`,
+          [randomUUID(), userId, itemId, 1, correct, wrong],
+        );
+      }
+      const [rows] = await connection.execute<RowDataPacket[]>(
+        `SELECT * FROM ${cfg.table} WHERE user_id=? AND ${cfg.item}=? LIMIT 1`,
+        [userId, itemId],
+      );
+      await connection.commit();
+      return { ...(rows[0] || {}), duplicateEvent: event.affectedRows === 0 };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   static async listWrongQuestions(userId: string) {
@@ -124,16 +140,25 @@ export class ChineseStorage {
   }
 
   static async createExam(userId: string, body: Record<string, unknown>) {
-    const score = Math.max(0, Math.min(100, Number(body.score) || 0));
-    const lessonId = typeof body.lessonId === 'string' ? body.lessonId : null;
-    const id = randomUUID();
+    const total = Math.max(0, Math.min(100, Math.floor(Number(body.totalQuestions) || 0)));
+    const correct = Math.max(0, Math.min(total, Math.floor(Number(body.correctQuestions) || 0)));
+    const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const lessonId = typeof body.lessonId === 'string' ? body.lessonId.slice(0, 64) : null;
+    const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_exam_records
-       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [id,userId,lessonId,score,score>=70?1:0,Number(body.totalQuestions)||0,Number(body.correctQuestions)||0,Number(body.durationSeconds)||0,JSON.stringify(body.answers ?? null)],
+       (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,request_key)
+       VALUES (?,?,?,?,0,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+      [randomUUID(),userId,lessonId,score,total,correct,Math.max(0,Math.floor(Number(body.durationSeconds)||0)),JSON.stringify(body.answers ?? null),requestKey],
     );
-    return { id, lessonId, score, passed: score >= 70 };
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, lesson_id, score, passed, total_questions, correct_questions, created_at FROM chinese_exam_records WHERE user_id=? AND request_key=? LIMIT 1',
+      [userId, requestKey],
+    );
+    // Client-side answer keys are not trusted for points. Until the server owns
+    // the canonical question bank, the score is provisional and earns no points.
+    return { ...(rows[0] || {}), lessonId, requestKey, verified: false, provisionalPassed: score >= 70, passed: false };
   }
 
   static async listEssays(userId: string) {
@@ -147,13 +172,18 @@ export class ChineseStorage {
   static async createEssay(userId: string, body: Record<string, unknown>) {
     const content = String(body.content || '').trim();
     if (!content) throw Object.assign(new Error('请先填写作文内容'), { status: 400 });
-    const id = randomUUID();
+    const requestKey = typeof body.requestId === 'string' && body.requestId.length <= 64 ? body.requestId : randomUUID();
     await pool.execute<ResultSetHeader>(
       `INSERT INTO chinese_essay_records
-       (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,status)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [id,userId,body.essayId || null,body.title || null,body.prompt || null,content,[...content].length,JSON.stringify(body.feedback ?? null),'submitted'],
+       (id,user_id,essay_id,title,prompt,content,word_count,feedback_json,request_key,status)
+       VALUES (?,?,?,?,?,?,?,?,?,'submitted')
+       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+      [randomUUID(),userId,body.essayId || null,body.title || null,body.prompt || null,content,[...content].length,JSON.stringify(body.feedback ?? null),requestKey],
     );
-    return { id };
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT id, created_at FROM chinese_essay_records WHERE user_id=? AND request_key=? LIMIT 1',
+      [userId, requestKey],
+    );
+    return { ...(rows[0] || {}), requestKey };
   }
 }
