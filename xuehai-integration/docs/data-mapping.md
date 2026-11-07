@@ -10,7 +10,7 @@
 | user_sentence_progress | chinese_sentence_progress | (user_id, sentence_id) 唯一；保留 completed 与练习统计 |
 | user_wrong_questions | chinese_wrong_questions | 保留题干快照、错/对次数、resolved_at |
 | localStorage.wrongQuestionIds | chinese_wrong_questions | 只在用户显式导出并传入 --progress-json 时导入 ID；无题干快照的记录标记为 legacy |
-| exam_records | chinese_exam_records | score、answers_json、题数与耗时；历史记录 passed 设为 false，不补发积分；旧 exam_id 不默认当作 lesson_id |
+| exam_records | chinese_exam_records | grade、score、answers_json、题数与耗时；历史记录 passed 设为 false，不补发积分；旧 exam_id 不默认当作 lesson_id |
 | localStorage.examHistory | chinese_exam_records | 仅当旧 DB 没有测验记录时作为补充来源导入；历史导入不发积分 |
 | essay_practices | chinese_essay_records | 原文、题目、字数、评分与 feedback JSON |
 | localStorage.essayPractices | chinese_essay_records | 仅当旧 DB 没有作文记录时作为补充来源导入 |
