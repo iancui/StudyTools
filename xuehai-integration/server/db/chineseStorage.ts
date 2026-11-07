@@ -187,6 +187,17 @@ export class ChineseStorage {
     return { saved: true };
   }
 
+
+  static async resolveWrongQuestion(userId: string, questionId: string) {
+    const id = String(questionId || '').trim();
+    if (!id || id.length > 100) throw Object.assign(new Error('错题记录无效'), { status: 400 });
+    await pool.execute<ResultSetHeader>(
+      'UPDATE chinese_wrong_questions SET is_resolved=1, resolved_at=CURRENT_TIMESTAMP WHERE user_id=? AND question_id=?',
+      [userId, id],
+    );
+    return { questionId: id, resolved: true };
+  }
+
   static async listExams(userId: string) {
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT * FROM chinese_exam_records WHERE user_id=? ORDER BY created_at DESC',
