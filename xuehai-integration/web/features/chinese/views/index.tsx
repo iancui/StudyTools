@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GradeId, CharacterItem, WordItem, SentenceItem, ExamQuestion } from '../data/index.ts';
-import { speakChinese } from '../speech.ts';
 import { ChineseFrame as Frame, ChineseGradePicker as GradePicker, ChineseNotice as Notice, ChineseCard as Card, ChineseSpeakButton as SpeakButton, ChineseSearch as Search, ChineseHandwritingPad as HandwritingPad } from '../components/ChineseUI.tsx';
 import { getReviewSchedule, sortReviewQueue } from '../reviewAlgorithm.ts';
 import { GRADES_LIST, CHARACTERS_DATA, WORDS_DATA, SENTENCES_DATA, ESSAYS_DATA, PREVIEW_GUIDES } from '../data/index.ts';
