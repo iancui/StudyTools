@@ -16,4 +16,4 @@
 | legacy userId | 旧 users.id | 仅来源审计 | 由受信任流程映射学海用户 |
 
 ## 数据库迁移约束
-未取得学海目标数据库 schema，故不生成 SQL。旧 schema 含 DROP TABLE、旧 users 外键和 unsigned BIGINT user_id，不得在学海执行或复用。目标表名、列、主键类型、索引、租户策略、事务和幂等键必须以学海真实 schema/API 为准。
+未取得学海目标数据库 schema，故不生成 SQL。旧 schema 含破坏性删表定义、旧 users 外键和 unsigned BIGINT user_id，不得在学海执行或复用。目标表名、列、主键类型、索引、租户策略、事务和幂等键必须以学海真实 schema/API 为准。
