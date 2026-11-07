@@ -207,19 +207,35 @@ export class ChineseStorage {
     const questionType = String(body.questionType || 'unknown').slice(0, 32);
     const questionContent = String(body.questionContent || '').slice(0, 4000);
     if (!questionId || questionId.length > 100 || !requestKey || requestKey.length > 64) throw Object.assign(new Error('题目资料不完整'), { status: 400 });
-    await pool.execute<ResultSetHeader>(
-      `INSERT INTO chinese_wrong_questions
-       (id,user_id,question_id,question_type,question_content,request_key)
-       VALUES (?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE
-       wrong_count=wrong_count + IF(request_key=VALUES(request_key),0,1),
-       question_content=VALUES(question_content), request_key=VALUES(request_key),
-       last_wrong_at=CURRENT_TIMESTAMP, is_resolved=0, resolved_at=NULL`,
-      [randomUUID(), userId, questionId, questionType, questionContent, requestKey],
-    );
-    return { saved: true, requestId: requestKey };
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute<ResultSetHeader>(
+        `INSERT INTO chinese_wrong_questions
+         (id,user_id,question_id,question_type,question_content,request_key)
+         VALUES (?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+         wrong_count=wrong_count + IF(request_key=VALUES(request_key),0,1),
+         question_content=VALUES(question_content), request_key=VALUES(request_key),
+         last_wrong_at=CURRENT_TIMESTAMP, is_resolved=0, resolved_at=NULL`,
+        [randomUUID(), userId, questionId, questionType, questionContent, requestKey],
+      );
+      const [rows] = await connection.execute<RowDataPacket[]>(
+        'SELECT question_id FROM chinese_wrong_questions WHERE user_id=? AND request_key=? LIMIT 1',
+        [userId, requestKey],
+      );
+      if (!rows[0] || rows[0].question_id !== questionId) {
+        throw Object.assign(new Error('错题请求编号已使用，请重新提交'), { status: 409 });
+      }
+      await connection.commit();
+      return { saved: true, requestId: requestKey };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
-
 
   static async resolveWrongQuestion(userId: string, questionId: string) {
     const id = String(questionId || '').trim();
