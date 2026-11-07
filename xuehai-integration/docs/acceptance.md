@@ -30,6 +30,6 @@
 ## 已知未完成
 
 - 页面已具备基础交互学习闭环：生字/词语练习、句子仿写、笔顺画布自我检查、预习、错题解决、间隔复习、175 道服务端核验题库、逐题反馈、作文自检、学习计时和档案；真正的手写识别、AI 作文批改、按正式课次发积分、家长聚合视图尚未完成。
-- 课程数据已抽取为 TypeScript 运行时快照及 `web/features/chinese/data/curriculum.json`（约 205 KB）；JSON 为 12 年级、95 条内容记录，保留 legacyId，未携带旧积分等级/徽章配置；因源数据没有真实上下册/课次结构，JSON 中的 s1/l01 是明确标记的 synthetic 兼容课程包，不作为真实课次或积分依据。
+- 课程数据已抽取为 TypeScript 运行时快照及 `web/features/chinese/data/curriculum.json`（约 144 KB）；JSON 为 12 年级、95 条内容记录，保留 legacyId，测验题只保留题干/选项、不包含答案/解析，未携带旧积分等级/徽章配置；因源数据没有真实上下册/课次结构，JSON 中的 s1/l01 是明确标记的 synthetic 兼容课程包，不作为真实课次或积分依据。
 - 家长聚合视图依赖学海 FamilyService 与权限策略，尚未实现。
 - 学科偏好 patch 需在真实 subjectPreference.ts 中保留原有存储键后合并；目标文件内容未提供，不能安全生成整文件替换。
