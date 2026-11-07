@@ -45,8 +45,8 @@
 2. 导出旧用户与进度数据；确认目标学海用户已存在，且 username 唯一匹配（旧 StudyTools users 表没有 email 字段）。
 3. 配置 `STUDYTOOLS_DB_*` 与学海 `DB_*` 环境变量。
 4. 若需导入旧浏览器进度，先导出 localStorage 中 `moyun_chinese_learning_v1:user:<旧用户数值ID>` 对应的 JSON value，汇总成以完整 key 为属性名的 JSON 文件；再传 `--progress-json=/安全路径/legacy-progress.json`。全局匿名 key 不会自动关联用户。
-5. 先执行 `node xuehai-integration/database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json`，检查每个用户的映射状态和记录数量。
-6. 只有核对通过后才执行 `node .../import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
+5. 进入 `apps/server/`，从该目录执行 `node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json`，检查用户映射和记录数量（脚本依赖 apps/server 安装的 mysql2）。
+6. 只有核对通过后才执行 `node database/legacy-import/import-studytools.mjs --progress-json=/安全路径/legacy-progress.json --apply --confirm`；脚本按用户事务导入、按唯一键 upsert，不迁移旧积分/签到/徽章，不调用 awardPoints。
 
 ## 可选参考适配器\n\n`xuehai-integration/src/` 提供源类型、进度字段白名单、纯函数迁移计划和注入式 API 适配器，便于独立审计或复用；正式学海集成以 `web/`、`server/`、`database/` 目录为准，不需要把该目录复制到学海。\n\n## 当前限制
 
