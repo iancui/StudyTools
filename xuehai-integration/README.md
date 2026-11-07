@@ -7,7 +7,7 @@
 - `patches/01-shared-subjects.md` 至 `05-server-register.md`：学海 5 个宿主接入补丁说明。
 - `web/features/chinese/api.ts`：本学科唯一 API 层，读取学海 `linguastep_token`，统一响应、401、友好错误和积分动画事件。
 - `web/features/chinese/ChineseShell.tsx`、`views/index.tsx`：语文外壳和页面路由组件骨架。
-- `web/features/chinese/data/**`：从旧项目课程模块提取的类型与静态数据 TypeScript 快照，稳定课程 ID 保留。
+- `web/features/chinese/data/**`：从旧项目课程模块提取的类型与静态数据 TypeScript 快照，稳定课程 ID 保留；另提供 `data/curriculum.json` 完整 JSON 导出。
 - `server/routes/chinese.ts`、`controllers/chineseController.ts`、`services/chineseService.ts`、`db/chineseStorage.ts`：后端分层；SQL 集中在 chineseStorage。
 - `server/data/chineseExamBank.ts`：服务端可信题库，服务端独立核验选择题/填空题答案，避免客户端伪造分数。
 - 预习完成记录、练习事件、作文/测验提交和学习计时具备服务端持久化与幂等保护；错题支持复习后标记解决。首页学习计时只累计整分钟，单次上限 240 分钟，不产生积分。
