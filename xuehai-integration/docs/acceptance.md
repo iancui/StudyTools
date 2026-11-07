@@ -19,6 +19,10 @@
 4. 接入服务端可信题库后，完成一课测验并达到 70 分，确认学海积分服务仅发 +1；同一 requestId 重试不重复建记录，同课重复达标不重复发分。当前版本成绩由服务端题库核验；因尚未关联正式课次，暂不发积分。练习、错题、作文、测验、预习和计时请求均带幂等键。学习计时重复提交同一 sessionId 不应重复增加分钟。
 5. 使用家长账号查看绑定孩子的语文进度，确认 FamilyService.assertStudentOwned 生效。
 
+## 自动静态检查
+
+新增 `node xuehai-integration/scripts/verify-chinese.mjs`，覆盖 175 道题目答案隔离、前后端题目 ID/选项一致性、稳定洗牌、课程 JSON、SQL 安全约束和路由文档数量。该脚本已提交，当前未执行。
+
 ## 未运行
 
 本次没有学海仓库源码、数据库连接和运行环境；未运行 pnpm build、tsc、SQL migration、API 集成测试或上述人工验收。StudyTools 原仓库也未执行 npm build。不得将静态检查描述为构建或运行通过。
