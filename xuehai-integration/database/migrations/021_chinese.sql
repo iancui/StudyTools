@@ -76,10 +76,12 @@ CREATE TABLE IF NOT EXISTS chinese_wrong_questions (
   first_wrong_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_wrong_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   resolved_at DATETIME NULL,
+  request_key VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_wrong_user_question (user_id, question_id),
-  KEY idx_chinese_wrong_user_resolved (user_id, is_resolved)
+  KEY idx_chinese_wrong_user_resolved (user_id, is_resolved),
+  UNIQUE KEY uk_chinese_wrong_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS chinese_exam_records (
