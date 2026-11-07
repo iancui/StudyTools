@@ -23,6 +23,7 @@ export function registerChineseRoutes(router: Router): void {
   router.post('/chinese/previews', ChinesePreviewController.complete);
   router.get('/chinese/wrong-questions', ChineseWrongQuestionController.list);
   router.post('/chinese/wrong-questions', ChineseWrongQuestionController.create);
+  router.post('/chinese/wrong-questions/resolve', ChineseWrongQuestionController.resolve);
   router.get('/chinese/exams', ChineseExamController.list);
   router.post('/chinese/exams', ChineseExamController.create);
   router.get('/chinese/essays', ChineseEssayController.list);
