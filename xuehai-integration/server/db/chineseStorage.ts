@@ -48,7 +48,7 @@ export class ChineseStorage {
 
   static async replaceDetail(userId: string, kind: Kind, ids: string[]) {
     const cfg = resource[kind];
-    if (!itemId || itemId.length > 100 || !eventId || eventId.length > 64) throw Object.assign(new Error('练习信息无效'), { status: 400 });
+    const safeIds = [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0 && id.length <= 100))].slice(0, 5000);
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -56,7 +56,7 @@ export class ChineseStorage {
         `UPDATE ${cfg.table} SET ${cfg.state}=0, ${cfg.doneAt}=NULL WHERE user_id=?`,
         [userId],
       );
-      for (const itemId of [...new Set(ids.filter((id) => typeof id === 'string' && id.length > 0))]) {
+      for (const itemId of safeIds) {
         await connection.execute(
           `INSERT INTO ${cfg.table} (id,user_id,${cfg.item},${cfg.state},${cfg.doneAt})
            VALUES (?,?,?,?,CURRENT_TIMESTAMP)
@@ -76,6 +76,7 @@ export class ChineseStorage {
 
   static async recordPractice(userId: string, kind: Kind, itemId: string, result: 'correct' | 'wrong', eventId: string) {
     const cfg = resource[kind];
+    if (!itemId || itemId.length > 100 || !eventId || eventId.length > 64) throw Object.assign(new Error('练习信息无效'), { status: 400 });
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
