@@ -49,11 +49,11 @@ export function getReviewSchedule(stats: ReviewStats, now = Date.now()): ReviewS
 
   const intervalDays = practiceCount >= 6 && accuracy >= 0.95
     ? 30
-    : accuracy >= 0.9
+    : practiceCount >= 4 && accuracy >= 0.9
       ? 14
-      : accuracy >= 0.75
+      : practiceCount >= 3 && accuracy >= 0.75
         ? 7
-        : accuracy >= 0.5
+        : practiceCount >= 2 && accuracy >= 0.5
           ? 3
           : 1;
   const nextReviewAt = last + intervalDays * DAY_MS;
