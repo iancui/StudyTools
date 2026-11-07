@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS chinese_character_progress (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_character_user_item (user_id, character_id),
-  KEY idx_chinese_character_user_mastered (user_id, is_mastered)
+  KEY idx_character_progress_user_mastered (user_id, is_mastered)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS chinese_word_progress (
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS chinese_word_progress (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_word_user_item (user_id, word_id),
-  KEY idx_chinese_word_user_mastered (user_id, is_mastered)
+  KEY idx_word_progress_user_mastered (user_id, is_mastered)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS chinese_sentence_progress (
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS chinese_sentence_progress (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_sentence_user_item (user_id, sentence_id),
-  KEY idx_chinese_sentence_user_completed (user_id, is_completed)
+  KEY idx_sentence_progress_user_completed (user_id, is_completed)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS chinese_wrong_questions (
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS chinese_wrong_questions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_wrong_user_question (user_id, question_id),
-  KEY idx_chinese_wrong_user_resolved (user_id, is_resolved),
+  KEY idx_wrong_questions_user_resolved (user_id, is_resolved),
   UNIQUE KEY uk_chinese_wrong_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -96,8 +96,8 @@ CREATE TABLE IF NOT EXISTS chinese_exam_records (
   answers_json JSON NULL,
   request_key VARCHAR(64) NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_chinese_exam_user_created (user_id, created_at),
-  KEY idx_chinese_exam_user_lesson (user_id, lesson_id),
+  KEY idx_exam_records_user_created (user_id, created_at),
+  KEY idx_exam_records_user_lesson (user_id, lesson_id),
   UNIQUE KEY uk_chinese_exam_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS chinese_essay_records (
   status VARCHAR(32) NOT NULL DEFAULT 'submitted',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  KEY idx_chinese_essay_user_created (user_id, created_at),
+  KEY idx_essay_records_user_created (user_id, created_at),
   UNIQUE KEY uk_chinese_essay_request (user_id, request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS chinese_practice_events (
   result VARCHAR(8) NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_practice_user_event (user_id, event_id),
-  KEY idx_chinese_practice_user_item (user_id, item_kind, item_id)
+  KEY idx_practice_events_user_item (user_id, item_kind, item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 预习完成记录：独立于积分/签到，不触发奖励。
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS chinese_preview_records (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_preview_user_guide (user_id, guide_id),
-  KEY idx_chinese_preview_user_completed (user_id, completed_at)
+  KEY idx_preview_records_user_completed (user_id, completed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 学习计时会话：使用 session_id 幂等，防止重复提交累计学习分钟。
@@ -152,5 +152,5 @@ CREATE TABLE IF NOT EXISTS chinese_study_sessions (
   duration_minutes INT NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chinese_study_user_session (user_id, session_id),
-  KEY idx_chinese_study_user_created (user_id, created_at)
+  KEY idx_study_sessions_user_created (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
