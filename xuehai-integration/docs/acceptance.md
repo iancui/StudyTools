@@ -21,7 +21,7 @@
 
 ## 自动静态检查
 
-新增 `node xuehai-integration/scripts/verify-chinese.mjs`，覆盖 175 道题目答案隔离、前后端题目 ID/选项一致性、稳定洗牌、课程 JSON、SQL 安全约束和路由文档数量。该脚本已提交，当前未执行。
+新增 `node xuehai-integration/scripts/verify-chinese.mjs`，覆盖 175 道题目答案隔离、前后端题目 ID/选项一致性、稳定洗牌、课程 JSON、SQL 安全约束、路由文档数量、web/server 相对 import 扩展名及 localStorage 白名单。该脚本已提交，当前未执行。
 
 ## 未运行
 
