@@ -10,6 +10,7 @@
 6. [ ] 课程 JSON 覆盖 12 年级；稳定新 ID 与 legacyId 对照，未导入旧积分等级/徽章配置。
 7. [ ] API 请求统一经 web/features/chinese/api.ts，路由固定为 /api/chinese/...；会话沿用学海 token。服务端/前端可信题库 ID 必须一致。
 8. [ ] 迁移计划是纯函数，无 DB IO；目标 userId 必须由学海认证流程提供。
+9. [ ] 运行 `node xuehai-integration/scripts/verify-chinese.mjs`，确认前端不包含题库标准答案、选项洗牌稳定、课程 JSON 与 SQL 约束正确。
 
 ## 宿主接入验收（接入后执行）
 
