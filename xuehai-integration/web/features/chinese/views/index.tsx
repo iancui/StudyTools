@@ -6,7 +6,7 @@ import {
   getChineseWords, saveChineseWords, getChineseSentences, saveChineseSentences,
   recordChineseCharacterPractice, recordChineseWordPractice, recordChineseSentencePractice,
   submitChineseExam, submitChineseEssay, getChineseWrongQuestions, saveChineseWrongQuestion,
-  getChineseExams, getChineseEssays, getChinesePreviews, completeChinesePreview,
+  getChineseExams, getChineseEssays, getChinesePreviews, completeChinesePreview, recordChineseStudySession,
 } from '../api.ts';
 
 interface ViewProps { ctx: { navigate: (route: string) => void } }
@@ -48,15 +48,20 @@ function useRemoteIds(kind:'characters'|'words'|'sentences'){
 
 export function ChineseHomeView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const [progress,setProgress]=useState<any>(null),[error,setError]=useState('');
+  const [startedAt,setStartedAt]=useState<number|null>(null),[seconds,setSeconds]=useState(0),[sessionId,setSessionId]=useState(''),[timerNotice,setTimerNotice]=useState(''),[saving,setSaving]=useState(false);
   useEffect(()=>{let live=true;void getChineseProgress().then(p=>{if(live)setProgress(p);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'学习概览暂不可用');});return()=>{live=false;};},[]);
+  useEffect(()=>{if(startedAt===null)return;const timer=window.setInterval(()=>setSeconds(Math.floor((Date.now()-startedAt)/1000)),1000);return()=>window.clearInterval(timer);},[startedAt]);
   const links=[['生字学习','/chinese/characters','汉字、拼音、部首与笔画'],['笔顺练习','/chinese/characters/practice','书写与自我检查'],['词语学习','/chinese/words','词义、近反义词和例句'],['句子学习','/chinese/sentences','修辞、文言和仿写'],['作文练习','/chinese/essays','审题、提纲和写作'],['预习','/chinese/preview','课前导读'],['复习','/chinese/review','巩固尚未掌握的内容'],['测验','/chinese/exam','题库与自动评分'],['学习档案','/chinese/archive','错题、测验和作文记录'],['学习设置','/chinese/settings','年级、学期和教材版本']];
+  const start=()=>{setSessionId(crypto.randomUUID());setStartedAt(Date.now());setSeconds(0);setTimerNotice('计时已开始，结束时保存本次学习时长。');};
+  const stop=async()=>{if(startedAt===null)return;const minutes=Math.floor((Date.now()-startedAt)/60000);if(minutes<1){setTimerNotice('至少学习 1 分钟后才能保存本次计时。');return;}setSaving(true);try{const saved=await recordChineseStudySession(minutes,sessionId);setProgress((p:any)=>({...p,total_study_minutes:saved.totalStudyMinutes}));setStartedAt(null);setSeconds(0);setSessionId('');setTimerNotice(`已保存 ${saved.durationMinutes} 分钟学习时长。`);}catch(e){setTimerNotice(e instanceof Error?e.message:'计时保存失败；请重试，重复提交不会重复累计。');}finally{setSaving(false);}};
+  const clock=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds%3600/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
   return <Frame ctx={ctx} title="语文学习首页" subtitle="从识字、词语到阅读表达，循序渐进建立语文能力。">
     <GradePicker value={grade} onChange={setGrade}/>{error&&<Notice error>{error}</Notice>}
     {progress&&<div className="grid gap-3 sm:grid-cols-3"><Card title={String(progress.grade||'未设置')} meta="学习年级"/><Card title={String(progress.total_study_minutes??0)} meta="累计学习分钟"/><Card title={String(progress.textbook_version||'默认教材')} meta="教材版本"/></div>}
+    <Card title="学习计时" meta="服务端保存 · 防重复提交"><div className="flex flex-wrap items-center justify-between gap-3"><strong className="text-3xl tabular-nums text-[#29466F]">{clock}</strong>{startedAt===null?<button onClick={start} className="rounded-lg bg-[#29466F] px-4 py-2 text-white">开始计时</button>:<button disabled={saving} onClick={()=>void stop()} className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{saving?'保存中…':'结束并保存'}</button>}</div>{timerNotice&&<p className="text-sm text-[#607797]">{timerNotice}</p>}<p className="text-xs text-[#7890B0]">学习时长按整分钟保存，单次最多计入 4 小时；计时不会产生积分。</p></Card>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{links.map(([name,path,desc])=><button key={path} onClick={()=>ctx.navigate(path)} className="rounded-2xl border border-[#E7EEF8] bg-white p-5 text-left shadow-sm hover:shadow-md"><strong>{name}</strong><span className="mt-2 block text-sm text-[#607797]">{desc}</span></button>)}</div>
   </Frame>;
 }
-
 export function ChineseCharactersView({ctx}:ViewProps){
   const {grade,setGrade}=useGrade();const remote=useRemoteIds('characters');const [query,setQuery]=useState(''),[selected,setSelected]=useState<CharacterItem|null>(null),[answer,setAnswer]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[practiceEventId,setPracticeEventId]=useState('');
   const items=CHARACTERS_DATA[grade]||[],filtered=items.filter(x=>[x.char,x.pinyin,x.radical,...x.meanings].join(' ').toLowerCase().includes(query.toLowerCase()));
