@@ -527,11 +527,75 @@ export function ChineseExamView({ctx}:ViewProps){
 }
 
 export function ChineseArchiveView({ctx}:ViewProps){
-  const [progress,setProgress]=useState<any>(null),[wrong,setWrong]=useState<any[]>([]),[exams,setExams]=useState<any[]>([]),[essays,setEssays]=useState<any[]>([]),[previews,setPreviews]=useState<any[]>([]),[chars,setChars]=useState<any[]>([]),[words,setWords]=useState<any[]>([]),[sentences,setSentences]=useState<any[]>([]),[loading,setLoading]=useState(true),[notice,setNotice]=useState('');
-  useEffect(()=>{let live=true;Promise.all([getChineseProgress(),getChineseWrongQuestions(),getChineseExams(),getChineseEssays(),getChinesePreviews(),getChineseCharacters(),getChineseWords(),getChineseSentences()]).then(([p,w,e,a,pr,c,wo,se])=>{if(!live)return;setProgress(p);setWrong(w);setExams(e);setEssays(a);setPreviews(pr);setChars(c);setWords(wo);setSentences(se);}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'档案读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
-  const masteredChars=chars.filter(x=>x.is_mastered).length,masteredWords=words.filter(x=>x.is_mastered).length,completedSentences=sentences.filter(x=>x.is_completed).length;
-  return <Frame ctx={ctx} title="学习档案" subtitle="汇总服务端保存的学习配置、掌握情况、预习、错题、测验和作文记录。">{loading&&<Notice>正在读取档案…</Notice>}{notice&&<Notice error>{notice}</Notice>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Card title={String(progress?.total_study_minutes??0)} meta="累计学习分钟"/><Card title={String(masteredChars)} meta="已掌握生字"/><Card title={String(masteredWords)} meta="已掌握词语"/><Card title={String(completedSentences)} meta="已完成句子"/><Card title={String(previews.length)} meta="预习记录"/><Card title={String(wrong.filter(x=>!x.is_resolved).length)} meta="待解决错题"/><Card title={String(exams.length)} meta="测验次数"/><Card title={String(essays.length)} meta="作文记录"/></div><Card title="学习配置"><p>年级：{String(progress?.grade||'未设置')}</p><p>学期：{String(progress?.semester||'未设置')}</p><p>教材：{String(progress?.textbook_version||'未设置')}</p></Card><Card title="最近测验">{exams.slice(0,8).map((x,i)=><p key={String(x.id||i)}>{x.created_at||''} · {x.score} 分 · {x.passed?'达标':'继续努力'}</p>)}</Card><Card title="最近作文">{essays.slice(0,8).map((x,i)=><p key={String(x.id||i)}>{x.title||'作文练习'} · {x.word_count||0} 字 · {x.created_at||''}</p>)}</Card><Card title="待解决错题">{wrong.filter(x=>!x.is_resolved).slice(0,12).map((x,i)=><p key={String(x.id||i)}>{x.question_content||x.question_id} · 错误 {x.wrong_count} 次</p>)}</Card></Frame>;
+  const [progress,setProgress]=useState<any>(null);
+  const [wrong,setWrong]=useState<any[]>([]);
+  const [exams,setExams]=useState<any[]>([]);
+  const [essays,setEssays]=useState<any[]>([]);
+  const [previews,setPreviews]=useState<any[]>([]);
+  const [chars,setChars]=useState<any[]>([]);
+  const [words,setWords]=useState<any[]>([]);
+  const [sentences,setSentences]=useState<any[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [notice,setNotice]=useState('');
+  useEffect(()=>{
+    let live=true;
+    Promise.all([getChineseProgress(),getChineseWrongQuestions(),getChineseExams(),getChineseEssays(),getChinesePreviews(),getChineseCharacters(),getChineseWords(),getChineseSentences()])
+      .then(([p,w,e,a,pr,c,wo,se])=>{
+        if(!live)return;
+        setProgress(p);setWrong(w);setExams(e);setEssays(a);setPreviews(pr);setChars(c);setWords(wo);setSentences(se);
+      })
+      .catch(e=>{if(live)setNotice(e instanceof Error?e.message:'档案读取失败');})
+      .finally(()=>{if(live)setLoading(false);});
+    return()=>{live=false;};
+  },[]);
+  const masteredChars=chars.filter(x=>Boolean(x.is_mastered)).length;
+  const masteredWords=words.filter(x=>Boolean(x.is_mastered)).length;
+  const completedSentences=sentences.filter(x=>Boolean(x.is_completed)).length;
+  const grade=(GRADES_LIST.some(x=>x.id===progress?.grade)?progress.grade:'g3') as GradeId;
+  const totals=(CHARACTERS_DATA[grade]?.length||0)+(WORDS_DATA[grade]?.length||0)+(SENTENCES_DATA[grade]?.length||0);
+  const mastered=masteredChars+masteredWords+completedSentences;
+  const masteryRate=totals?Math.min(100,Math.round(mastered/totals*100)):0;
+  const averageScore=exams.length?Math.round(exams.reduce((sum,x)=>sum+Number(x.score||0),0)/exams.length):0;
+  const passRate=exams.length?Math.round(exams.filter(x=>Boolean(x.passed)).length/exams.length*100):0;
+  const averageEssayLength=essays.length?Math.round(essays.reduce((sum,x)=>sum+Number(x.word_count||0),0)/essays.length):0;
+  return <Frame ctx={ctx} title="学习档案" subtitle="汇总学习时长、掌握情况、预习、错题、测验和作文记录。">
+    {loading&&<Notice>正在读取档案…</Notice>}
+    {notice&&<Notice error>{notice}</Notice>}
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Card title={String(progress?.total_study_minutes??0)} meta="累计学习分钟"/>
+      <Card title={String(masteryRate)+'%'} meta="本年级内容掌握率"/>
+      <Card title={String(averageScore)} meta="测验平均分"/>
+      <Card title={String(passRate)+'%'} meta="测验达标率"/>
+      <Card title={String(masteredChars)} meta="已掌握生字"/>
+      <Card title={String(masteredWords)} meta="已掌握词语"/>
+      <Card title={String(completedSentences)} meta="已完成句子"/>
+      <Card title={String(previews.length)} meta="预习记录"/>
+      <Card title={String(wrong.filter(x=>!x.is_resolved).length)} meta="待解决错题"/>
+      <Card title={String(exams.length)} meta="测验次数"/>
+      <Card title={String(essays.length)} meta="作文记录"/>
+      <Card title={String(averageEssayLength)} meta="平均作文字符数"/>
+    </div>
+    <Card title="学习配置">
+      <p>年级：{String(progress?.grade||'未设置')}</p>
+      <p>学期：{String(progress?.semester||'未设置')}</p>
+      <p>教材：{String(progress?.textbook_version||'未设置')}</p>
+      <p>本年级内容量：{totals} 项</p>
+    </Card>
+    <Card title="最近测验" meta={exams.length+' 次'}>
+      {exams.slice(0,8).map((x,i)=><p key={String(x.id||i)} className="border-b border-[#E7EEF8] py-2 last:border-0">{x.created_at||''} · {x.grade||''} · {x.score} 分 · {x.passed?'达标':'继续努力'}</p>)}
+      {!exams.length&&<p className="text-sm text-[#7890B0]">完成一次测验后，这里会显示成绩记录。</p>}
+    </Card>
+    <Card title="最近作文" meta={essays.length+' 篇'}>
+      {essays.slice(0,8).map((x,i)=><div key={String(x.id||i)} className="border-b border-[#E7EEF8] py-2 last:border-0"><p className="font-medium">{x.title||'作文练习'}</p><p className="text-xs text-[#7890B0]">{x.word_count||0} 字 · {x.created_at||''}</p></div>)}
+      {!essays.length&&<p className="text-sm text-[#7890B0]">保存作文后，这里会显示写作记录。</p>}
+    </Card>
+    <Card title="待解决错题" meta={wrong.filter(x=>!x.is_resolved).length+' 项'}>
+      {wrong.filter(x=>!x.is_resolved).slice(0,12).map((x,i)=><div key={String(x.id||i)} className="border-b border-[#E7EEF8] py-2 last:border-0"><p>{x.question_content||x.question_id}</p><p className="text-xs text-[#7890B0]">错误 {x.wrong_count} 次 · {x.question_type}</p></div>)}
+      {!wrong.some(x=>!x.is_resolved)&&<p className="text-sm text-[#7890B0]">目前没有待解决错题。</p>}
+    </Card>
+  </Frame>;
 }
+
 export function ChineseSettingsView({ctx}:ViewProps){
   const [grade,setGrade]=useState<GradeId>('g3'),[semester,setSemester]=useState<'s1'|'s2'>('s1'),[version,setVersion]=useState('default'),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
   useEffect(()=>{let live=true;void getChineseProgress().then((p:any)=>{if(!live||!p)return;if(GRADES_LIST.some(x=>x.id===p.grade))setGrade(p.grade);setSemester(p.semester==='s2'?'s2':'s1');setVersion(String(p.textbook_version||'default'));}).catch(e=>{if(live)setNotice(e instanceof Error?e.message:'设置读取失败');}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[]);
