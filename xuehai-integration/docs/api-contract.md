@@ -24,7 +24,7 @@
 | POST | /api/chinese/wrong-questions | 新增/更新错题 | 无 |
 | POST | /api/chinese/wrong-questions/resolve | 将指定错题标记为已解决 | 无 |
 | GET | /api/chinese/exams | 测验记录列表 | 无 |
-| POST | /api/chinese/exams | 保存测验记录；服务端按可信题库核验答案 | 服务端核验通过且达标后才发 1 点；当前年级综合题库可核验，但尚无正式 lessonId 映射，暂不发分 |
+| POST | /api/chinese/exams | 提交测验；服务端按可信题库核验答案、自动保存错题并解决本次答对的历史错题 | 服务端核验通过且达标后才发 1 点；当前年级综合题库可核验，但尚无正式 lessonId 映射，暂不发分 |
 | GET | /api/chinese/essays | 作文记录列表 | 无 |
 | POST | /api/chinese/essays | 保存作文及批改 JSON | 无 |
 
