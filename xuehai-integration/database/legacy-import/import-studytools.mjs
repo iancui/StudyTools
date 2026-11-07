@@ -118,13 +118,14 @@ async function importUser(oldUser) {
       `INSERT INTO chinese_exam_records
        (id,user_id,lesson_id,score,passed,total_questions,correct_questions,duration_seconds,answers_json,created_at)
        VALUES (?,?,NULL,?,?,?,?,?,?,?)`,
-      [randomUUID(),targetUserId,safeScore(row.score),safeScore(row.score)>=70?1:0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),row.created_at],
+      [randomUUID(),targetUserId,safeScore(row.score),0,row.total_questions,row.correct_questions,row.duration_seconds,jsonValue(row.answers),`legacy-exam:${row.id}`,row.created_at],
     );
     for (const row of essays) await connection.execute(
       `INSERT INTO chinese_essay_records
-       (id,user_id,essay_id,title,prompt,content,word_count,score,feedback_json,status,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [randomUUID(),targetUserId,null,row.title,row.prompt,row.content,row.word_count,row.score,jsonValue({feedback:row.feedback,aiScore:row.ai_score}),row.status,row.created_at,row.updated_at],
+       (id,user_id,essay_id,title,prompt,content,word_count,score,feedback_json,request_key,status,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE request_key=VALUES(request_key)`,
+      [randomUUID(),targetUserId,null,row.title,row.prompt,row.content,row.word_count,row.score,jsonValue({feedback:row.feedback,aiScore:row.ai_score}),`legacy-essay:${row.id}`,row.status,row.created_at,row.updated_at],
     );
 
     // Deliberately excluded: old墨滴/签到/连续天数/徽章/refresh tokens.
