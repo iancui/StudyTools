@@ -17,7 +17,7 @@ export interface PointsAward {
 }
 
 export interface ChineseProgressDTO {
-  user_id: string;
+  user_id?: string;
   grade: string;
   semester: 's1' | 's2';
   textbook_version: string;
