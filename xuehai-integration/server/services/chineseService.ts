@@ -1,4 +1,3 @@
-import { db } from '../db/storage.ts';
 import { ChineseStorage } from '../db/chineseStorage.ts';
 import { CHINESE_EXAM_BANK } from '../data/chineseExamBank.ts';
 
