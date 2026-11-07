@@ -55,6 +55,16 @@ assert.equal(questionCount, 175, '题库总题量应为 175');
 
 const curriculum = JSON.parse(await read('web/features/chinese/data/curriculum.json'));
 assert.equal(curriculum.grades.length, 12, '课程 JSON 必须覆盖 12 个年级');
+for (const grade of curriculum.grades) {
+  for (const semester of grade.semesters || []) {
+    for (const lesson of semester.lessons || []) {
+      for (const question of lesson.quiz || []) {
+        assert.ok(!Object.hasOwn(question, 'correctAnswer'), question.id + ' 课程 JSON 泄露标准答案');
+        assert.ok(!Object.hasOwn(question, 'explanation'), question.id + ' 课程 JSON 提前暴露解析');
+      }
+    }
+  }
+}
 assert.ok((await read('web/features/chinese/data/curriculum.json')).length < 2 * 1024 * 1024, '课程 JSON 超过 2MB');
 
 const migration = await read('database/migrations/021_chinese.sql');
