@@ -44,7 +44,7 @@
 
 - `web/features/chinese/data/curriculum.json`：约 149 KB，12 个年级、95 条旧课程内容记录，JSON 包含字符、词语、句子、作文、题库和预习导读。
 - `web/features/chinese/data/curriculum.data.ts`：源项目兼容类型化快照，供当前页面直接使用。
-- `web/features/chinese/data/examBank.ts` 与 `server/data/chineseExamBank.ts)：前后端同源 175 道可信题目。
+- `web/features/chinese/data/examBank.ts` 与 `server/data/chineseExamBank.ts`：前后端同源 175 道可信题目。
 - JSON 中的新内容 ID 按 `g{grade}-s1-l01-{c/w/s/e/q}{序号}` 生成，并保留 `legacyId`；当前页面的进度 API 仍使用旧内容 ID，以免破坏已有学习记录。
 - 旧数据没有可靠的上下册和课次划分，因此 JSON 里的 `s1/l01` 是兼容性课程包 ID，不代表已核实的真实教材课次；不得用它自动发放学海积分。
 
